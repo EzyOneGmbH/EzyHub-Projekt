@@ -1372,6 +1372,46 @@ async function jobAttribution(c: any) {
   return fetchAttribution(c, zeitraum({ days: 30 }));
 }
 
+/** Nur diese eine Schicht verlangt → stündlicher KI-Besucher-Takt (19.11.2026). */
+export function nurAttribution(wanted: readonly string[]): boolean {
+  return wanted.length === 1 && wanted[0] === "attribution";
+}
+
+// Attribution hängt am neuesten Report des Kunden (Zeilen ersetzen, nie
+// doppeln). leerErlaubt: auch «0 KI-Besuche in 30 Tagen» wird geschrieben
+// (alte Zeilen weg) — sonst bliebe im Stundentakt ein veralteter Stand stehen.
+async function schreibeAttribution(
+  sb: any,
+  clientId: string,
+  at: any,
+  leerErlaubt = false,
+): Promise<boolean> {
+  if (!Array.isArray(at?.engines)) return false;
+  if (!at.engines.length && !leerErlaubt) return false;
+  const { data: lastRep } = await sb
+    .from("ai_visibility_reports")
+    .select("id")
+    .eq("client_id", clientId)
+    .order("snapshot_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!lastRep?.id) return false;
+  await sb.from("ai_visibility_attribution").delete().eq("report_id", lastRep.id);
+  if (at.engines.length)
+    await sb.from("ai_visibility_attribution").insert(
+      at.engines.map((e: any) => ({
+        report_id: lastRep.id,
+        client_id: clientId,
+        engine: e.engine,
+        sessions: e.sessions,
+        conversions: e.conversions,
+        events: Array.isArray(e.events) ? e.events : [],
+        visitors: Array.isArray(e.visitors) ? e.visitors : [],
+      })),
+    );
+  return true;
+}
+
 // ── Stufe 2: Custom-Prompt-Runner (Claude / Perplexity / Gemini) ─────────────
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
 // Web-Suche in der Prompt-Messung (Volkan 26.08.): Engines antworten mit
@@ -4252,6 +4292,25 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
                 results.push({ client: c.name, domain: c.domain, jobs: jr });
                 continue;
               }
+              // Stündlicher KI-Besucher-Takt (19.11.2026, Volkan: «Übersicht
+              // Kacheln jede Stunde aktualisieren»): reiner attribution-Lauf =
+              // nur GA4 (kostenlos). Deshalb ohne Freshness-Guard, ohne
+              // Konkurrenten-/Semrush-Abfrage und ohne Report-Upsert — es werden
+              // nur die Attributionszeilen des neuesten Reports ersetzt.
+              if (nurAttribution(wanted)) {
+                const at: any = await withDeadline(
+                  jobAttribution(c),
+                  5 * 60_000,
+                  "attribution",
+                ).catch((e) => ({ skipped: String((e as any)?.message || e).slice(0, 160) }));
+                const geschrieben = await schreibeAttribution(sb, c.id, at, true);
+                jr.attribution =
+                  at?.skipped || at?.error
+                    ? at
+                    : { engines: at?.engines?.length ?? 0, geschrieben };
+                results.push({ client: c.name, domain: c.domain, jobs: jr });
+                continue;
+              }
               // Freshness-Guard (Brand Radar kostet Units).
               if (!force && minIntervalDays > 0) {
                 const since = new Date(Date.now() - minIntervalDays * 86400_000)
@@ -5178,29 +5237,7 @@ export const Route = createFileRoute("/api/admin/aivis-sync")({
               // Attribution UNABHÄNGIG vom Report-Block schreiben: hängt am
               // neuesten Report des Kunden. So aktualisiert auch ein reiner
               // attribution-Lauf die Conversion-Details (inkl. events-Aufschlüsselung).
-              if (at?.engines?.length) {
-                const { data: lastRep } = await sb
-                  .from("ai_visibility_reports")
-                  .select("id")
-                  .eq("client_id", c.id)
-                  .order("snapshot_date", { ascending: false })
-                  .limit(1)
-                  .maybeSingle();
-                if (lastRep?.id) {
-                  await sb.from("ai_visibility_attribution").delete().eq("report_id", lastRep.id);
-                  await sb.from("ai_visibility_attribution").insert(
-                    at.engines.map((e: any) => ({
-                      report_id: lastRep.id,
-                      client_id: c.id,
-                      engine: e.engine,
-                      sessions: e.sessions,
-                      conversions: e.conversions,
-                      events: Array.isArray(e.events) ? e.events : [],
-                      visitors: Array.isArray(e.visitors) ? e.visitors : [],
-                    })),
-                  );
-                }
-              }
+              await schreibeAttribution(sb, c.id, at);
             } catch (e) {
               jr.error = redactSecrets(e);
             }

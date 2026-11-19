@@ -278,8 +278,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.39.1",
+    version: "1.39.2",
     changelog: [
+      {
+        version: "1.39.2",
+        date: "2026-11-19",
+        note: "Übersicht «Alle Kunden»: Besucher und Conversions der Kunden-Kacheln werden jede Stunde aus GA4 neu geschrieben (vorher nur mit dem Messlauf, etwa alle 6 Tage) — die offene Seite lädt stündlich still nach, das Badge zeigt den Stand der Zahlen",
+      },
       {
         version: "1.39.1",
         date: "2026-11-05",

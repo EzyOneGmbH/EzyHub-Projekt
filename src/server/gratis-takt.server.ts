@@ -8,6 +8,11 @@
 // aktualisierten Kunden nacheinander über /api/admin/populate (ersetzeHeute =
 // eine Zeile pro Tag, laufend aktualisiert) bedient, bis das Zeitbudget voll
 // ist. So ist jeder Kunde etwa stündlich dran, ohne Lastspitze.
+// 19.11.2026 (Volkan: «Übersicht Kacheln im EzyAI jede Stunde aktualisieren»):
+// im selben Takt die KI-Besucher/-Conversions (GA4, kostenlos) über
+// /api/admin/aivis-sync mit jobs:["attribution"] — dort ein Schnellpfad ohne
+// kostenpflichtige Schichten. Vorher schrieb der Sync diese Zahlen nur alle
+// ~6 Tage neu (Freshness-Guard des Messlaufs).
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const GRATIS_SEO_JOBS = ["gsc", "gsc_queries", "pagespeed", "seo_history"] as const;
@@ -37,6 +42,14 @@ export function gratisJobsFuer(k: Kunde, appsAus: Set<string>): string[] {
   }
   if (k.ga4_property && !(appsAus.has("seo") && appsAus.has("geo"))) jobs.push(...GRATIS_GA4_JOBS);
   return jobs;
+}
+
+/** KI-Besucher der EzyAI-Kacheln: GA4 verbunden und EzyAI nicht abgeschaltet. */
+export function kiBesucherFaellig(
+  k: { ga4_property: string | null },
+  appsAus: Set<string>,
+): boolean {
+  return !!k.ga4_property && !appsAus.has("geo");
 }
 
 /** Reihenfolge: am längsten nicht aktualisiert zuerst; frisch (< 50 min) raus. */
@@ -82,11 +95,34 @@ export async function gratisTakt(origin: string, secret: string) {
   }));
   const jobsVon = new Map(mitJobs.map((k: { id: string; jobs: string[] }) => [k.id, k.jobs]));
   const warteschlange = reihenfolge(mitJobs, zuletzt);
+  const mitKi = new Set<string>(
+    (kunden ?? [])
+      .filter((k: Kunde) => kiBesucherFaellig(k, aus.get(k.id) ?? new Set()))
+      .map((k: Kunde) => k.id),
+  );
 
   const erledigt: string[] = [];
   let fehler = 0;
+  let ki = 0;
+  let kiFehler = 0;
   for (const id of warteschlange) {
     if (Date.now() - t0 > ZEITBUDGET_MS) break;
+    // KI-Besucher zuerst (kurz, nur GA4): so bleibt kein Kunde eine Runde lang
+    // ohne frische Kachel-Zahlen, wenn das Zeitbudget nach populate voll ist.
+    if (mitKi.has(id)) {
+      try {
+        const r = await fetch(`${origin}/api/admin/aivis-sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
+          body: JSON.stringify({ client: id, jobs: ["attribution"] }),
+          signal: AbortSignal.timeout(45_000),
+        });
+        if (r.ok) ki++;
+        else kiFehler++;
+      } catch {
+        kiFehler++;
+      }
+    }
     try {
       const r = await fetch(`${origin}/api/admin/populate`, {
         method: "POST",
@@ -111,6 +147,8 @@ export async function gratisTakt(origin: string, secret: string) {
     faellig: warteschlange.length,
     erledigt: erledigt.length,
     fehler,
+    ki,
+    kiFehler,
     ms: Date.now() - t0,
   };
 }

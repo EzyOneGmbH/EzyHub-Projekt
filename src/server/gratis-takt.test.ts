@@ -2,7 +2,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
-import { gratisJobsFuer, reihenfolge, MIN_ABSTAND_MS } from "./gratis-takt.server";
+import {
+  gratisJobsFuer,
+  kiBesucherFaellig,
+  reihenfolge,
+  MIN_ABSTAND_MS,
+} from "./gratis-takt.server";
 
 const k = (p: Partial<Parameters<typeof gratisJobsFuer>[0]>) => ({
   id: "k",
@@ -41,6 +46,13 @@ describe("Gratis-Takt", () => {
     expect(gratisJobsFuer(k({ gsc_property: null, ga4_property: null }), new Set())).toEqual([
       "pagespeed",
     ]);
+  });
+
+  it("KI-Besucher stündlich: nur mit GA4 und freigeschaltetem EzyAI", () => {
+    expect(kiBesucherFaellig(k({}), new Set())).toBe(true);
+    expect(kiBesucherFaellig(k({}), new Set(["seo"]))).toBe(true);
+    expect(kiBesucherFaellig(k({}), new Set(["geo"]))).toBe(false);
+    expect(kiBesucherFaellig(k({ ga4_property: null }), new Set())).toBe(false);
   });
 
   it("am längsten nicht bearbeitet zuerst, frische Kunden warten", () => {

@@ -40,6 +40,7 @@ import {
   resolveRange,
   previousPeriod,
   isoDay,
+  useStuendlich,
   type ResolvedRange,
   type SharedRange,
 } from "@/ezy/data/rangeStore";
@@ -4063,6 +4064,24 @@ function PromptCurationPanel({ clientId, S }: { clientId: string; S: Record<stri
   );
 }
 
+/** Badge der Kunden-Kachel: heute «HH:MM», sonst «TT.MM.» (Schweizer Zeit). */
+function kachelStand(iso: string, jetzt: Date = new Date()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const tag = (x: Date) => x.toLocaleDateString("de-CH", { timeZone: "Europe/Zurich" });
+  return tag(d) === tag(jetzt)
+    ? d.toLocaleTimeString("de-CH", {
+        timeZone: "Europe/Zurich",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : d.toLocaleDateString("de-CH", {
+        timeZone: "Europe/Zurich",
+        day: "2-digit",
+        month: "2-digit",
+      });
+}
+
 // ── Agentur-Übersicht (Volkan 10.08., analog EzyRank) ────────────────────────
 // "Alle Kunden": alle berechtigten Kunden als anklickbare Kacheln mit
 // KI-Sichtbarkeit / Erwähnungen / Citations aus dem jeweils neuesten
@@ -4077,9 +4096,12 @@ function AiAgencyOverview({
   S: Record<string, string>;
 }) {
   const [stats, setStats] = useState<
-    Record<string, { visitors: number; conversions: number; date: string }>
+    Record<string, { visitors: number; conversions: number; date: string; stand?: string }>
   >({});
   const [suche, setSuche] = useState("");
+  // Stündlich still neu laden (19.11.2026) — der Gratis-Takt schreibt die
+  // KI-Besucher/-Conversions (GA4) jetzt jede Stunde neu.
+  const stunde = useStuendlich();
   useEffect(() => {
     let alive = true;
     const ids = clients.map((c: any) => c.id).filter((id: string) => /^[0-9a-f-]{36}$/i.test(id));
@@ -4102,32 +4124,49 @@ function AiAgencyOverview({
         newest.set(String(r.client_id), { id: String(r.id), date: String(r.snapshot_date || "") });
       }
       const repIds = [...newest.values()].map((n) => n.id);
-      const sums = new Map<string, { visitors: number; conversions: number }>();
+      const sums = new Map<string, { visitors: number; conversions: number; stand: string }>();
       if (repIds.length) {
-        const { data: attr } = await (supabase as any)
-          .from("ai_visibility_attribution")
-          .select("report_id, sessions, conversions")
-          .in("report_id", repIds);
+        // updated_at = Zeitpunkt des letzten Stundenlaufs (Spalte seit 19.11.2026);
+        // fehlt sie noch, lädt die Abfrage ohne sie (Badge zeigt dann den Messlauf).
+        const lade = (felder: string) =>
+          (supabase as any)
+            .from("ai_visibility_attribution")
+            .select(felder)
+            .in("report_id", repIds);
+        const mitStand = await lade("report_id, sessions, conversions, updated_at");
+        const attr = mitStand.error
+          ? (await lade("report_id, sessions, conversions")).data
+          : mitStand.data;
         if (!alive) return;
         for (const a of attr ?? []) {
           const k = String(a.report_id);
-          const t = sums.get(k) ?? { visitors: 0, conversions: 0 };
+          const t = sums.get(k) ?? { visitors: 0, conversions: 0, stand: "" };
           t.visitors += Number(a.sessions ?? 0);
           t.conversions += Number(a.conversions ?? 0);
+          const u = String(a.updated_at ?? "");
+          if (u > t.stand) t.stand = u;
           sums.set(k, t);
         }
       }
-      const next: Record<string, { visitors: number; conversions: number; date: string }> = {};
+      const next: Record<
+        string,
+        { visitors: number; conversions: number; date: string; stand?: string }
+      > = {};
       for (const [clientId, n] of newest) {
-        const t = sums.get(n.id) ?? { visitors: 0, conversions: 0 };
-        next[clientId] = { visitors: t.visitors, conversions: t.conversions, date: n.date };
+        const t = sums.get(n.id) ?? { visitors: 0, conversions: 0, stand: "" };
+        next[clientId] = {
+          visitors: t.visitors,
+          conversions: t.conversions,
+          date: n.date,
+          stand: t.stand || undefined,
+        };
       }
       setStats(next);
     })();
     return () => {
       alive = false;
     };
-  }, [clients]);
+  }, [clients, stunde]);
   // Alphabetisch — Kundenreihenfolge ist überall gleich (Volkan 13.08.).
   const tiles = [...clients].sort((a: any, b: any) =>
     String(a.name).localeCompare(String(b.name), "de-CH", { sensitivity: "base" }),
@@ -4238,7 +4277,11 @@ function AiAgencyOverview({
                 </div>
                 {st?.date && (
                   <span
-                    title={`Letzter Messlauf: ${st.date}`}
+                    title={
+                      st.stand
+                        ? `Besucher/Conversions aktualisiert: ${new Date(st.stand).toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" })} (GA4, letzte 30 Tage, stündlich) · letzter Messlauf: ${st.date}`
+                        : `Letzter Messlauf: ${st.date}`
+                    }
                     style={{
                       flexShrink: 0,
                       fontSize: 10,
@@ -4248,7 +4291,9 @@ function AiAgencyOverview({
                       padding: "3px 8px",
                     }}
                   >
-                    {st.date.slice(8, 10)}.{st.date.slice(5, 7)}.
+                    {st.stand
+                      ? kachelStand(st.stand)
+                      : `${st.date.slice(8, 10)}.${st.date.slice(5, 7)}.`}
                   </span>
                 )}
               </div>
