@@ -770,6 +770,7 @@ export type Database = {
           id: string
           report_id: string
           sessions: number | null
+          updated_at: string
           visitors: Json
         }
         Insert: {
@@ -780,6 +781,7 @@ export type Database = {
           id?: string
           report_id: string
           sessions?: number | null
+          updated_at?: string
           visitors?: Json
         }
         Update: {
@@ -790,6 +792,7 @@ export type Database = {
           id?: string
           report_id?: string
           sessions?: number | null
+          updated_at?: string
           visitors?: Json
         }
         Relationships: [

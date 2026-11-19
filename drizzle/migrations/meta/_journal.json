@@ -43,6 +43,13 @@
       "when": 1795013277252,
       "tag": "0005_blog_topics_plan",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795097896572,
+      "tag": "0006_ai_visibility_attribution_updated_at",
+      "breakpoints": true
     }
   ]
 }
