@@ -378,7 +378,9 @@ describe("Modus, Kategorie, Helfer", () => {
   it("Kundenabschnitt: gebündelt nach den Kriterien, keine Hintergrundstatistik", () => {
     const p = { domain: "beispiel.ch", language: "de-CH" };
     const text = entwurfPrompt(p, { ...BRIEF, zielfrage: "Passt das Haus für 50 Personen?" }, []);
-    expect(text).toContain("gebündelt in genau einem Abschnitt, direkt nach dem allgemeinen Teil");
+    expect(text).toContain("Er ist der zweite Abschnitt des Artikels");
+    expect(text).toContain("Fehlt eine neuere Zahl, bleibt die Angabe weg.");
+    expect(text).not.toContain("ausser es gibt nichts Neueres");
     expect(text).toContain("Sein erster Satz sagt, ob und unter welchen Bedingungen es passt.");
     expect(text).toContain("Keine Branchen-, Markt- oder Regionsstatistik");
     expect(text).toContain("Schreibe nie über die Recherche oder ihre Lücken");
