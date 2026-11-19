@@ -191,8 +191,8 @@ import { Route as EzyrankBlogArtikelIdRouteImport } from './routes/ezyrank_.blog
 import { Route as EzyrankBlogEinrichtungStepRouteImport } from './routes/ezyrank_.blog.einrichtung.$step'
 import { Route as ApiBlogArticlesIdApproveRouteImport } from './routes/api/blog.articles.$id.approve'
 import { Route as ApiBlogArticlesIdIndexierungRouteImport } from './routes/api/blog.articles.$id.indexierung'
-import { Route as ApiBlogArticlesIdSyncWpRouteImport } from './routes/api/blog.articles.$id.sync-wp'
 import { Route as ApiBlogArticlesIdRewriteRouteImport } from './routes/api/blog.articles.$id.rewrite'
+import { Route as ApiBlogArticlesIdSyncWpRouteImport } from './routes/api/blog.articles.$id.sync-wp'
 import { Route as ApiBlogClaimsIdResolveRouteImport } from './routes/api/blog.claims.$id.resolve'
 import { Route as ApiBlogOpportunitiesIdDecisionRouteImport } from './routes/api/blog.opportunities.$id.decision'
 import { Route as ApiBlogProjectsIdActivityRouteImport } from './routes/api/blog.projects.$id.activity'
@@ -1160,14 +1160,15 @@ const ApiBlogArticlesIdIndexierungRoute =
     path: '/indexierung',
     getParentRoute: () => ApiBlogArticlesIdRoute,
   } as any)
+const ApiBlogArticlesIdRewriteRoute =
+  ApiBlogArticlesIdRewriteRouteImport.update({
+    id: '/rewrite',
+    path: '/rewrite',
+    getParentRoute: () => ApiBlogArticlesIdRoute,
+  } as any)
 const ApiBlogArticlesIdSyncWpRoute = ApiBlogArticlesIdSyncWpRouteImport.update({
   id: '/sync-wp',
   path: '/sync-wp',
-  getParentRoute: () => ApiBlogArticlesIdRoute,
-} as any)
-const ApiBlogArticlesIdRewriteRoute = ApiBlogArticlesIdRewriteRouteImport.update({
-  id: '/rewrite',
-  path: '/rewrite',
   getParentRoute: () => ApiBlogArticlesIdRoute,
 } as any)
 const ApiBlogClaimsIdResolveRoute = ApiBlogClaimsIdResolveRouteImport.update({
@@ -1508,8 +1509,8 @@ export interface FileRoutesByFullPath {
   '/ezyrank/blog/einrichtung/$step': typeof EzyrankBlogEinrichtungStepRoute
   '/api/blog/articles/$id/approve': typeof ApiBlogArticlesIdApproveRoute
   '/api/blog/articles/$id/indexierung': typeof ApiBlogArticlesIdIndexierungRoute
-  '/api/blog/articles/$id/sync-wp': typeof ApiBlogArticlesIdSyncWpRoute
   '/api/blog/articles/$id/rewrite': typeof ApiBlogArticlesIdRewriteRoute
+  '/api/blog/articles/$id/sync-wp': typeof ApiBlogArticlesIdSyncWpRoute
   '/api/blog/claims/$id/resolve': typeof ApiBlogClaimsIdResolveRoute
   '/api/blog/opportunities/$id/decision': typeof ApiBlogOpportunitiesIdDecisionRoute
   '/api/blog/projects/$id/activity': typeof ApiBlogProjectsIdActivityRoute
@@ -1721,8 +1722,8 @@ export interface FileRoutesByTo {
   '/ezyrank/blog/einrichtung/$step': typeof EzyrankBlogEinrichtungStepRoute
   '/api/blog/articles/$id/approve': typeof ApiBlogArticlesIdApproveRoute
   '/api/blog/articles/$id/indexierung': typeof ApiBlogArticlesIdIndexierungRoute
-  '/api/blog/articles/$id/sync-wp': typeof ApiBlogArticlesIdSyncWpRoute
   '/api/blog/articles/$id/rewrite': typeof ApiBlogArticlesIdRewriteRoute
+  '/api/blog/articles/$id/sync-wp': typeof ApiBlogArticlesIdSyncWpRoute
   '/api/blog/claims/$id/resolve': typeof ApiBlogClaimsIdResolveRoute
   '/api/blog/opportunities/$id/decision': typeof ApiBlogOpportunitiesIdDecisionRoute
   '/api/blog/projects/$id/activity': typeof ApiBlogProjectsIdActivityRoute
@@ -1935,8 +1936,8 @@ export interface FileRoutesById {
   '/ezyrank_/blog/einrichtung/$step': typeof EzyrankBlogEinrichtungStepRoute
   '/api/blog/articles/$id/approve': typeof ApiBlogArticlesIdApproveRoute
   '/api/blog/articles/$id/indexierung': typeof ApiBlogArticlesIdIndexierungRoute
-  '/api/blog/articles/$id/sync-wp': typeof ApiBlogArticlesIdSyncWpRoute
   '/api/blog/articles/$id/rewrite': typeof ApiBlogArticlesIdRewriteRoute
+  '/api/blog/articles/$id/sync-wp': typeof ApiBlogArticlesIdSyncWpRoute
   '/api/blog/claims/$id/resolve': typeof ApiBlogClaimsIdResolveRoute
   '/api/blog/opportunities/$id/decision': typeof ApiBlogOpportunitiesIdDecisionRoute
   '/api/blog/projects/$id/activity': typeof ApiBlogProjectsIdActivityRoute
@@ -2150,8 +2151,8 @@ export interface FileRouteTypes {
     | '/ezyrank/blog/einrichtung/$step'
     | '/api/blog/articles/$id/approve'
     | '/api/blog/articles/$id/indexierung'
-    | '/api/blog/articles/$id/sync-wp'
     | '/api/blog/articles/$id/rewrite'
+    | '/api/blog/articles/$id/sync-wp'
     | '/api/blog/claims/$id/resolve'
     | '/api/blog/opportunities/$id/decision'
     | '/api/blog/projects/$id/activity'
@@ -2363,8 +2364,8 @@ export interface FileRouteTypes {
     | '/ezyrank/blog/einrichtung/$step'
     | '/api/blog/articles/$id/approve'
     | '/api/blog/articles/$id/indexierung'
-    | '/api/blog/articles/$id/sync-wp'
     | '/api/blog/articles/$id/rewrite'
+    | '/api/blog/articles/$id/sync-wp'
     | '/api/blog/claims/$id/resolve'
     | '/api/blog/opportunities/$id/decision'
     | '/api/blog/projects/$id/activity'
@@ -2576,8 +2577,8 @@ export interface FileRouteTypes {
     | '/ezyrank_/blog/einrichtung/$step'
     | '/api/blog/articles/$id/approve'
     | '/api/blog/articles/$id/indexierung'
-    | '/api/blog/articles/$id/sync-wp'
     | '/api/blog/articles/$id/rewrite'
+    | '/api/blog/articles/$id/sync-wp'
     | '/api/blog/claims/$id/resolve'
     | '/api/blog/opportunities/$id/decision'
     | '/api/blog/projects/$id/activity'
@@ -4061,18 +4062,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBlogArticlesIdIndexierungRouteImport
       parentRoute: typeof ApiBlogArticlesIdRoute
     }
-    '/api/blog/articles/$id/sync-wp': {
-      id: '/api/blog/articles/$id/sync-wp'
-      path: '/sync-wp'
-      fullPath: '/api/blog/articles/$id/sync-wp'
-      preLoaderRoute: typeof ApiBlogArticlesIdSyncWpRouteImport
-      parentRoute: typeof ApiBlogArticlesIdRoute
-    }
     '/api/blog/articles/$id/rewrite': {
       id: '/api/blog/articles/$id/rewrite'
       path: '/rewrite'
       fullPath: '/api/blog/articles/$id/rewrite'
       preLoaderRoute: typeof ApiBlogArticlesIdRewriteRouteImport
+      parentRoute: typeof ApiBlogArticlesIdRoute
+    }
+    '/api/blog/articles/$id/sync-wp': {
+      id: '/api/blog/articles/$id/sync-wp'
+      path: '/sync-wp'
+      fullPath: '/api/blog/articles/$id/sync-wp'
+      preLoaderRoute: typeof ApiBlogArticlesIdSyncWpRouteImport
       parentRoute: typeof ApiBlogArticlesIdRoute
     }
     '/api/blog/claims/$id/resolve': {
@@ -4450,15 +4451,15 @@ const ApiV1ProjectsRouteWithChildren = ApiV1ProjectsRoute._addFileChildren(
 interface ApiBlogArticlesIdRouteChildren {
   ApiBlogArticlesIdApproveRoute: typeof ApiBlogArticlesIdApproveRoute
   ApiBlogArticlesIdIndexierungRoute: typeof ApiBlogArticlesIdIndexierungRoute
-  ApiBlogArticlesIdSyncWpRoute: typeof ApiBlogArticlesIdSyncWpRoute
   ApiBlogArticlesIdRewriteRoute: typeof ApiBlogArticlesIdRewriteRoute
+  ApiBlogArticlesIdSyncWpRoute: typeof ApiBlogArticlesIdSyncWpRoute
 }
 
 const ApiBlogArticlesIdRouteChildren: ApiBlogArticlesIdRouteChildren = {
   ApiBlogArticlesIdApproveRoute: ApiBlogArticlesIdApproveRoute,
   ApiBlogArticlesIdIndexierungRoute: ApiBlogArticlesIdIndexierungRoute,
-  ApiBlogArticlesIdSyncWpRoute: ApiBlogArticlesIdSyncWpRoute,
   ApiBlogArticlesIdRewriteRoute: ApiBlogArticlesIdRewriteRoute,
+  ApiBlogArticlesIdSyncWpRoute: ApiBlogArticlesIdSyncWpRoute,
 }
 
 const ApiBlogArticlesIdRouteWithChildren =
