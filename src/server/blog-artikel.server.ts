@@ -12,6 +12,7 @@ import {
 } from "@/server/blog-autopilot.server";
 import { meldeIndexierung, pruefeIndexierung } from "@/server/blog-indexierung.server";
 import {
+  MAX_PARALLEL,
   PLUGIN_LIVE,
   bereinigeHtml,
   bereinigeLinks,
@@ -466,6 +467,76 @@ export async function sendeAenderungen(r: Rahmen): Promise<Antwort> {
     wp_edit_url: out.wp_edit_url ?? article.wp_edit_url,
     gesendet_at: jetzt,
   });
+}
+
+/**
+ * «Neu schreiben»: Der Artikel läuft noch einmal durch die ganze Pipeline, mit
+ * den heutigen Schreibregeln und Fakten. Der bisherige Text bleibt als Version
+ * erhalten; Faktencheck und Prüfung beginnen von vorn.
+ */
+export async function schreibeNeu(r: Rahmen): Promise<Antwort> {
+  const { article, project, ctx } = r;
+  if (!istAgentur(ctx)) return fehler(403, "Nur für Ezy One");
+  if (!["faktencheck", "entwurf_wp", "fehler"].includes(article.status))
+    return fehler(
+      409,
+      article.status === "kunde_freigegeben" || article.status === "live"
+        ? "Nach der Freigabe lässt sich der Artikel nicht mehr neu schreiben"
+        : "Der Artikel wird bereits geschrieben",
+    );
+  if (project.status !== "active") return fehler(409, "Der Autopilot ist noch nicht gestartet");
+  if (!article.topic_id) return fehler(409, "Zu diesem Artikel fehlt das Thema");
+  const { data: laufend } = await SB.from("blog_articles")
+    .select("id")
+    .eq("project_id", article.project_id)
+    .in("status", ["freigegeben", "schreibt"]);
+  if ((laufend ?? []).length >= MAX_PARALLEL)
+    return fehler(429, "Es werden bereits Artikel geschrieben. Bitte kurz warten.");
+  if (!nurHub(article, project) && article.wp_post_id) {
+    // Am Ende geht der neue Text in denselben WordPress-Entwurf (external_id).
+    const wp = await wpVerbindung(project.id);
+    if (!wp) return fehler(409, "WordPress ist nicht verbunden");
+    const stand = await wpStand(wp.conn, Number(article.wp_post_id));
+    if ("fehler" in stand) return fehler(502, stand.fehler!);
+    if (stand.gefunden && WP_LIVE.includes(stand.status))
+      return fehler(
+        409,
+        "Der Beitrag ist in WordPress bereits veröffentlicht und würde überschrieben. Änderungen bitte direkt in WordPress machen.",
+      );
+  }
+  const jetzt = new Date().toISOString();
+  const alt = article.job ?? {};
+  // Zwischenstände, Prüfung durch Ezy One und Bearbeitungsvermerk fallen weg.
+  const job = {
+    ...(alt.trigger ? { trigger: alt.trigger } : {}),
+    ...(alt.wordpress ? { wordpress: alt.wordpress } : {}),
+    neu: { at: jetzt, by: ctx.userId },
+  };
+  const { data, error } = await SB.from("blog_articles")
+    .update({
+      status: "freigegeben",
+      stage: "brief",
+      attempts: 0,
+      error: null,
+      locked_until: null,
+      finished_at: null,
+      job,
+      updated_at: jetzt,
+    })
+    .eq("id", article.id)
+    .eq("status", article.status)
+    .select("id");
+  if (error) return fehler(500, "Speichern fehlgeschlagen");
+  if (!data?.length)
+    return fehler(409, "Der Artikel hat sich inzwischen geändert. Bitte die Seite neu laden.");
+  await blogEvent(
+    article.project_id,
+    "article.rewrite",
+    { von: article.status, version: Number(article.version) || 1 },
+    ctx.userId,
+    article.id,
+  );
+  return ok({ status: "freigegeben" });
 }
 
 // ── Prüfung und Freigabe ────────────────────────────────────────────────────

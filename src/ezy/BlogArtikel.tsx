@@ -387,6 +387,7 @@ export default function BlogArtikel({ id }: { id: string }) {
   const geprueft = !!a.review;
   const textEditierbar = status === "entwurf_wp";
   const darfBearbeiten = agentur && (status === "entwurf_wp" || status === "faktencheck");
+  const darfNeuSchreiben = agentur && ["entwurf_wp", "faktencheck", "fehler"].includes(status);
   const wpStatus: string | null = a.wordpress?.status ?? null;
   const freigabeText = wp.kann_veroeffentlichen ? "Freigeben und live schalten" : "Freigeben";
 
@@ -494,6 +495,16 @@ export default function BlogArtikel({ id }: { id: string }) {
     if (!j) return;
     await lade();
     setMeldung({ ton: "ok", text: "Änderungen an WordPress gesendet." });
+  };
+
+  const schreibeNeu = async () => {
+    const j = await aktion("neu", `/api/blog/articles/${id}/rewrite`, {});
+    if (!j) return;
+    await lade();
+    setMeldung({
+      ton: "ok",
+      text: "Der Artikel wird neu geschrieben. Das dauert ein paar Minuten.",
+    });
   };
 
   const pruefeWp = async () => {
@@ -1049,6 +1060,28 @@ export default function BlogArtikel({ id }: { id: string }) {
                 {textEditierbar ? "Text und SEO bearbeiten" : "Titel und SEO bearbeiten"}
               </Knopf>
             )}
+            {darfNeuSchreiben &&
+              !bearbeiten &&
+              (frage === "neu" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>
+                    Artikel neu schreiben? Der jetzige Text wird ersetzt (er bleibt als Version
+                    gespeichert), Faktencheck und Prüfung beginnen von vorn.
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <Knopf onClick={() => void schreibeNeu()} disabled={busy !== null}>
+                      {busy === "neu" ? "Startet…" : "Ja, neu schreiben"}
+                    </Knopf>
+                    <Knopf art="text" onClick={() => setFrage(null)} disabled={busy !== null}>
+                      Abbrechen
+                    </Knopf>
+                  </div>
+                </div>
+              ) : (
+                <Knopf art="text" onClick={() => setFrage("neu")} disabled={busy !== null}>
+                  Neu schreiben
+                </Knopf>
+              ))}
           </Block>
 
           {html && !bearbeiten && (

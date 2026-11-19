@@ -357,6 +357,7 @@ describe("Modus, Kategorie, Helfer", () => {
     expect(mit).toContain("in den ersten drei Sätzen");
     expect(mit).toContain("Checkliste Barrierefreiheit");
     expect(mit).toContain("ohne Nennung des Auftraggebers");
+    expect(mit).toContain("dessen Überschrift den Auftraggeber beim Namen nennt");
   });
 
   it("Stil: Fliesstext und kein KI-Ton für alle, keine Werbung ausser bei Seitenvorschlägen", () => {

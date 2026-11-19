@@ -33,6 +33,10 @@ function builder(table: string) {
       st.f.push((r: any) => r[k] === v);
       return api;
     },
+    in(k: string, v: any[]) {
+      st.f.push((r: any) => v.includes(r[k]));
+      return api;
+    },
     insert(r: any) {
       st.insert = Array.isArray(r) ? r : [r];
       return api;
@@ -77,6 +81,7 @@ const {
   kannVeroeffentlichen,
   pruefeWpStatus,
   saeubereEditorHtml,
+  schreibeNeu,
   sendeAenderungen,
   ungesendet,
 } = await import("./blog-artikel.server");
@@ -397,6 +402,79 @@ describe("sendeAenderungen", () => {
     expect(out.status).toBe(502);
     expect(String(out.body.error)).toMatch(/zu alt/);
     expect(wp).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("schreibeNeu", () => {
+  const T = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+  const hub = { publish_mode: "hub_only" };
+
+  it("stellt den Artikel wieder an den Anfang, Prüfung und Zwischenstände fallen weg", async () => {
+    const r = rahmen(
+      {
+        status: "faktencheck",
+        topic_id: T,
+        stage: "pruefen",
+        attempts: 2,
+        error: "alt",
+        wp_post_id: null,
+        job: {
+          trigger: "manuell",
+          modus: "neu",
+          brief: { x: 1 },
+          entwurf: { y: 2 },
+          review: { at: "2026-11-18T10:00:00.000Z" },
+          bearbeitet: { at: "2026-11-18T11:00:00.000Z" },
+        },
+      },
+      agentur,
+      hub,
+    );
+    const out = await schreibeNeu(r);
+    expect(out.status).toBe(200);
+    const a = db.blog_articles[0];
+    expect(a).toMatchObject({ status: "freigegeben", stage: "brief", attempts: 0, error: null });
+    expect(Object.keys(a.job).sort()).toEqual(["neu", "trigger"]);
+    expect(a.job.neu.by).toBe(U);
+    expect(fuerKundeSichtbar(a)).toBe(false);
+    // Der bisherige Text bleibt als Version stehen.
+    expect(db.article_versions).toHaveLength(1);
+    expect(db.blog_events.map((e) => e.type)).toEqual(["article.rewrite"]);
+    expect(wp).not.toHaveBeenCalled();
+  });
+
+  it("nur Ezy One, nur vor der Freigabe und nicht während des Schreibens", async () => {
+    expect((await schreibeNeu(rahmen({ topic_id: T }, kunde, hub))).status).toBe(403);
+    for (const status of ["kunde_freigegeben", "live", "schreibt", "freigegeben"])
+      expect((await schreibeNeu(rahmen({ topic_id: T, status }, agentur, hub))).status).toBe(409);
+    expect((await schreibeNeu(rahmen({ topic_id: null }, agentur, hub))).status).toBe(409);
+    expect(
+      (await schreibeNeu(rahmen({ topic_id: T }, agentur, { ...hub, status: "draft" }))).status,
+    ).toBe(409);
+    expect(db.blog_events).toHaveLength(0);
+  });
+
+  it("wartet, wenn schon genug Artikel in Arbeit sind", async () => {
+    const r = rahmen({ topic_id: T }, agentur, hub);
+    db.blog_articles.push(
+      { id: "x1", project_id: P, status: "schreibt" },
+      { id: "x2", project_id: P, status: "freigegeben" },
+    );
+    expect((await schreibeNeu(r)).status).toBe(429);
+    expect(db.blog_articles[0].status).toBe("entwurf_wp");
+  });
+
+  it("überschreibt keinen in WordPress veröffentlichten Beitrag", async () => {
+    wpAntworten(wpOk({ status: "publish" }));
+    const out = await schreibeNeu(rahmen({ topic_id: T }));
+    expect(out.status).toBe(409);
+    expect(db.blog_articles[0].status).toBe("entwurf_wp");
+    wpAntworten(wpOk({ status: "draft" }));
+    expect((await schreibeNeu(rahmen({ topic_id: T }))).status).toBe(200);
+    expect(wp.mock.calls.map((c) => `${c[1]} ${c[2]}`)).toEqual([
+      "GET /posts/18012",
+      "GET /posts/18012",
+    ]);
   });
 });
 

@@ -849,7 +849,7 @@ function planZeilen(b: any): string[] {
       : "",
     b.zielgruppe ? `Zielgruppe dieses Artikels: ${b.zielgruppe}.` : "",
     b.zielfrage
-      ? `Zielfrage: «${b.zielfrage}». Beantworte sie in den ersten drei Sätzen direkt und vollständig, als allgemeingültige Antwort ohne Nennung des Auftraggebers. Jeder dieser Sätze ist auch ohne den Rest des Artikels verständlich.`
+      ? `Zielfrage: «${b.zielfrage}». Beantworte sie in den ersten drei Sätzen direkt und vollständig, als allgemeingültige Antwort ohne Nennung des Auftraggebers. Jeder dieser Sätze ist auch ohne den Rest des Artikels verständlich. Weiter unten beantwortet ein eigener kurzer Abschnitt, dessen Überschrift den Auftraggeber beim Namen nennt, die Zielfrage für den Auftraggeber: zwei bis vier Sätze, nur belegte Fakten, ohne Wertung, jeder Satz für sich verständlich. Fehlen belegte Fakten dazu, entfällt dieser Abschnitt.`
       : "",
     b.zitierbar
       ? `Zitierfähiges Element (Pflicht, gut sichtbar im Artikel): ${b.zitierbar}. Verwende dafür nur belegte Fakten. Verlangt das Element Angaben zum Auftraggeber, stehen sie in einem eigenen Abschnitt mit entsprechender Überschrift.`
@@ -1029,12 +1029,24 @@ async function pruefen(article: any, project: any): Promise<StufeErgebnis> {
         note: c.n >= 1000 ? "ohne Markierung" : `span:${c.n}`,
       })),
     );
+  // Nach «Neu schreiben» bleibt der bisherige Text stehen: Der neue bekommt
+  // einmalig die nächste Versionsnummer (eine Nachprüfung zählt nicht weiter).
+  const neu = article.job?.neu;
+  let version = Number(neu?.version) || 1;
+  if (neu && !neu.version) {
+    const { data: letzte } = await SB.from("article_versions")
+      .select("version")
+      .eq("article_id", article.id)
+      .order("version", { ascending: false })
+      .limit(1);
+    version = Math.max(Number(article.version) || 1, Number(letzte?.[0]?.version) || 0) + 1;
+  }
   await SB.from("article_versions").upsert(
     {
       article_id: article.id,
       project_id: article.project_id,
       client_id: article.client_id,
-      version: 1,
+      version,
       content_html: loeseClaims(html),
       reason: "erstellt",
     },
@@ -1058,9 +1070,11 @@ async function pruefen(article: any, project: any): Promise<StufeErgebnis> {
     wp_category_ids: kategorie,
     wp_tag_names: (e.tags ?? []).slice(0, 6),
     featured_image: bild,
+    ...(neu ? { version } : {}),
   };
   const job = {
     ...article.job,
+    ...(neu ? { neu: { ...neu, version } } : {}),
     pruefung: {
       v: PRUEF_VERSION,
       links_entfernt: links.entfernt,
