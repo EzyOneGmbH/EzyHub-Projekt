@@ -6,6 +6,8 @@ import { Badge, Btn } from "./shared-ui";
 import { LinkSendenBtn, LinkStatusBadge, PasswortBtn } from "./LinkSenden";
 import { Inp, LiveEmptyState, Modal, TabBar } from "./ui-kit";
 import { ClientAvatar } from "@/ezy/ClientAvatar";
+import { KundenSuche } from "@/ezy/KundenSuche";
+import { passtZurSuche } from "@/lib/kundenSuche";
 import GoogleClientPanel from "@/ezy/GoogleClientPanel.jsx";
 import { Phone, Search } from "lucide-react";
 import { Fragment } from "react";
@@ -2121,7 +2123,9 @@ export function MatrixPage({ clients }) {
   const toast = useToast();
   const caa = useClientAppAccess();
   const [expanded, setExpanded] = useState(null); // clientId
+  const [suche, setSuche] = useState("");
   const apps = EZY_APPS.filter((a) => !a.adminOnly && !a.internalOnly);
+  const sichtbar = clients.filter((c) => passtZurSuche(suche, c.name, c.domain));
   const toggle = async (clientId, appId) => {
     const err = await caa.setAccess(clientId, appId, {
       enabled: !appEnabledFor(caa.map, clientId, appId),
@@ -2137,6 +2141,18 @@ export function MatrixPage({ clients }) {
           gelten sofort. Was der Kunde selbst im Portal sieht, steuerst du separat: Kunde aufklappen
           oder im Tab «Kunden-Zugriff».
         </p>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+        <KundenSuche
+          wert={suche}
+          onChange={setSuche}
+          farben={{ rand: C.inputBorder, icon: C.textDim, grund: "#fff", text: C.text }}
+        />
+        {!!suche.trim() && (
+          <span style={{ fontSize: 12, color: C.textMuted }}>
+            {sichtbar.length} von {clients.length}
+          </span>
+        )}
       </div>
       {caa.legacy && (
         <div
@@ -2202,7 +2218,22 @@ export function MatrixPage({ clients }) {
               </tr>
             </thead>
             <tbody>
-              {clients.map((c) => (
+              {!sichtbar.length && !!suche.trim() && (
+                <tr>
+                  <td
+                    colSpan={apps.length + 1}
+                    style={{
+                      padding: "32px 18px",
+                      textAlign: "center",
+                      fontSize: 13,
+                      color: C.textMuted,
+                    }}
+                  >
+                    Kein Kunde passt zu dieser Suche.
+                  </td>
+                </tr>
+              )}
+              {sichtbar.map((c) => (
                 <Fragment key={c.id}>
                   <tr>
                     <td style={{ padding: "13px 18px", borderBottom: `1px solid ${C.hairline}` }}>
