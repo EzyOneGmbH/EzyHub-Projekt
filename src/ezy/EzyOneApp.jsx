@@ -68,6 +68,8 @@ import {
   saveSharedRange,
   isReloadNavigation,
   letzteTage,
+  rolleZeitraum,
+  useStuendlich,
 } from "@/ezy/data/rangeStore";
 import { HexGlowLayer } from "@/ezy/HexGlow";
 import { AppVersionBadge } from "@/ezy/AppVersionBadge";
@@ -7042,6 +7044,14 @@ function App({ appScope = null }) {
           : undefined,
     });
   }, [dateRange]);
+  // Tageswechsel (19.11.2026): «letzte N Tage» enden gestern. Bleibt die App
+  // über Mitternacht offen, rückt der Zeitraum im Stundentakt nach — sonst
+  // zeigten Kacheln und Tabellen bis zum Reload den Stand des Vortags.
+  // Eigene Zeiträume bleiben unverändert.
+  const tagesTakt = useStuendlich();
+  useEffect(() => {
+    setDateRange((prev) => rolleZeitraum(prev));
+  }, [tagesTakt]);
   const [cmdOpen, setCmdOpen] = useState(false);
   const toast = useToast();
   const sw = isMobile ? 0 : collapsed ? 68 : 240;

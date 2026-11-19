@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getGoogleAccessToken } from "./google-tokens.server";
 import { ga4RunReportUrl } from "./ga4.server";
 import { gscTotals, type GscFilter } from "./gsc.server";
-import { heuteYmd, type Zeitraum } from "@/lib/date-range";
+import { gesternYmdZuerich, type Zeitraum } from "@/lib/date-range";
 import { cacheLesen, cacheSchreiben } from "./uebersicht-cache.server";
 
 // Agentur-Performance-Tabelle EzyRank (29.09.2026, analog EzyPerformance):
@@ -12,10 +12,12 @@ import { cacheLesen, cacheSchreiben } from "./uebersicht-cache.server";
 //  - Traffic / Traffic CH: GA4-Sitzungen Kanal «Organic Search» (wie die Kachel
 //    «Org. Traffic»), CH = countryId CH. Ohne GA4 Fallback auf Google-Klicks
 //    aus der Search Console (country che) — Quelle wird mitgeliefert.
-//  - Top 3 / Top 10: Rankings-Lauf (Crawl, sonst GSC-Ø) zum Ende des Zeitraums
-//    bzw. der Vergleichsperiode — gleiche Stichtag-Logik wie das SEO-Dashboard.
+//  - Top 3 / Top 10: Rankings-Lauf (Crawl, sonst GSC-Ø). Endet der Zeitraum
+//    gestern oder später (Standard «letzte N Tage»), zählt der neueste Lauf —
+//    wie in den Kacheln (19.11.2026). Ältere Zeiträume und die Vergleichs-
+//    periode: Stand zum Ende des Zeitraums (Stichtag).
 //  - Visibility Index: Sistrix (CH), gespeichert im Backlink-Lauf
-//    (audit_type «ahrefs», result.sistrix) — ebenfalls per Stichtag.
+//    (audit_type «ahrefs», result.sistrix) — gleiche Regel.
 
 export type SeoKennzahlen = {
   traffic: number | null;
@@ -94,11 +96,13 @@ export function parseGa4Organisch(json: any): {
 }
 
 /**
- * Stichtag fuer gespeicherte Laeufe: Tagesende (Europe/Zurich) des Datums;
- * Datum heute oder spaeter → null (= neuester Lauf), wie useEzyLatestRun.
+ * Stichtag fuer gespeicherte Laeufe: Tagesende (Europe/Zurich) des Datums.
+ * Datum gestern (Schweizer Zeit) oder spaeter → null (= neuester Lauf): die
+ * Standard-Zeitraeume enden gestern und sollen wie die Kacheln den Lauf von
+ * heute zeigen, nicht den Stand von gestern Abend (19.11.2026).
  */
 export function stichtagIso(ymd: string, jetztMs: number = Date.now()): string | null {
-  if (ymd >= heuteYmd(jetztMs)) return null;
+  if (ymd >= gesternYmdZuerich(jetztMs)) return null;
   const [y, m, d] = ymd.split("-").map(Number);
   // Offset der Zuercher Zeit an diesem Tag ermitteln (CET/CEST).
   const probe = new Date(Date.UTC(y, m - 1, d, 12));
@@ -206,7 +210,7 @@ export async function fetchSeoOverviewZeile(
   // frisch: stündliches Vorwärmen rechnet immer neu und überschreibt den Speicher.
   const hit = opts.frisch
     ? null
-    : await cacheLesen<SeoOverviewZeile>("seo", `${key}|${googleErlaubt ? 1 : 0}|r2`);
+    : await cacheLesen<SeoOverviewZeile>("seo", `${key}|${googleErlaubt ? 1 : 0}|r3`);
   if (hit) return hit;
 
   const cur: SeoKennzahlen = { ...LEER };
@@ -367,6 +371,6 @@ export async function fetchSeoOverviewZeile(
     error: null,
   };
   if (seoZeileSpeicherbar(zeile))
-    await cacheSchreiben("seo", `${key}|${googleErlaubt ? 1 : 0}|r2`, kunde.id, zeile);
+    await cacheSchreiben("seo", `${key}|${googleErlaubt ? 1 : 0}|r3`, kunde.id, zeile);
   return zeile;
 }

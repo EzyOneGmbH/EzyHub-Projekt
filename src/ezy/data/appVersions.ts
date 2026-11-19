@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.7.5",
+    version: "2.7.6",
     changelog: [
+      {
+        version: "2.7.6",
+        date: "2026-11-19",
+        note: "Übersicht «Alle Kunden»: Top 3, Top 10 und Visibility Index der Performance-Tabelle zeigen bei Zeiträumen bis gestern den neuesten Stand (wie die Kacheln); bleibt die App über Mitternacht offen, rückt der Zeitraum im Stundentakt automatisch nach",
+      },
       {
         version: "2.7.5",
         date: "2026-11-05",

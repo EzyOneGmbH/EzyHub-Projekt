@@ -128,4 +128,16 @@ describe("stichtagIso", () => {
     expect(stichtagIso("2026-09-29", jetzt)).toBeNull();
     expect(stichtagIso("2026-10-05", jetzt)).toBeNull();
   });
+  it("gestern (Ende von «letzte N Tage») = neuester Lauf, wie die Kacheln", () => {
+    expect(stichtagIso("2026-09-28", jetzt)).toBeNull();
+  });
+  it("vorgestern und aelter bleibt Stichtag", () => {
+    expect(stichtagIso("2026-09-27", jetzt)).toBe("2026-09-27T21:59:59.999Z");
+  });
+  it("kurz nach Mitternacht Schweizer Zeit gilt bereits der neue Tag", () => {
+    // 28.09. 22:30 UTC = 29.09. 00:30 in Zuerich → gestern ist der 28.09.
+    const nachMitternacht = Date.parse("2026-09-28T22:30:00Z");
+    expect(stichtagIso("2026-09-28", nachMitternacht)).toBeNull();
+    expect(stichtagIso("2026-09-27", nachMitternacht)).toBe("2026-09-27T21:59:59.999Z");
+  });
 });

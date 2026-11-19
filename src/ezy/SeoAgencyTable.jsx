@@ -77,7 +77,7 @@ const SPALTEN = [
     fmt: n0,
     delta: "abs",
     group: "rank",
-    hint: "Keywords auf Platz 1–3 (Rankings-Crawl, Stand zum Zeitraum-Ende)",
+    hint: "Keywords auf Platz 1–3 (Rankings-Crawl, neuester Stand; ältere Zeiträume: Stand zum Zeitraum-Ende)",
   },
   {
     key: "top10",
@@ -85,7 +85,7 @@ const SPALTEN = [
     fmt: n0,
     delta: "abs",
     group: "rank",
-    hint: "Keywords auf Platz 1–10 (Rankings-Crawl, Stand zum Zeitraum-Ende)",
+    hint: "Keywords auf Platz 1–10 (Rankings-Crawl, neuester Stand; ältere Zeiträume: Stand zum Zeitraum-Ende)",
   },
   {
     key: "visibility",
@@ -93,7 +93,7 @@ const SPALTEN = [
     fmt: vi,
     delta: "pct",
     group: "rank",
-    hint: "Sistrix-Sichtbarkeitsindex (Stand zum Zeitraum-Ende) — Schweiz, sofern beim Kunden kein anderes Sistrix-Land gewählt ist (Marke z. B. «FR»)",
+    hint: "Sistrix-Sichtbarkeitsindex (neuester Stand; ältere Zeiträume: Stand zum Zeitraum-Ende) — Schweiz, sofern beim Kunden kein anderes Sistrix-Land gewählt ist (Marke z. B. «FR»)",
   },
 ];
 
@@ -834,9 +834,9 @@ export function SeoAgencyTable({ clients, dateRange, onSelect, onCompareMode = n
       >
         <span>
           Org. Traffic = GA4-Sitzungen «Organic Search»
-          {hatGsc ? " (GSC = Google-Klicks, wo kein GA4 verbunden ist)" : ""} · Top 3/10 =
-          Rankings-Crawl zum Zeitraum-Ende · Visibility Index = Sistrix Schweiz (Marke «FR» usw. =
-          anderes Sistrix-Land je Kunde), in der Summe nicht addiert
+          {hatGsc ? " (GSC = Google-Klicks, wo kein GA4 verbunden ist)" : ""} · Top 3/10 = neuester
+          Rankings-Crawl (ältere Zeiträume: Stand zum Zeitraum-Ende) · Visibility Index = Sistrix
+          Schweiz (Marke «FR» usw. = anderes Sistrix-Land je Kunde), in der Summe nicht addiert
           {mitVergleich && methodenwechsel
             ? " · «Methode geändert» = Vergleichslauf anders gezählt (vor 14.09.2026) oder an anderem Crawl-Standort gemessen, daher kein Top-3/10-Vergleich (Grund im Tooltip)"
             : ""}

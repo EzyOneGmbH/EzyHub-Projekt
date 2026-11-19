@@ -101,6 +101,21 @@ export function isoDay(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * Tageswechsel im offenen Tab (19.11.2026): «letzte N Tage» enden gestern.
+ * Bleibt die App über Mitternacht offen, rückt der Zeitraum nach. Eigene
+ * Zeiträume und ein unveränderter Tag liefern dasselbe Objekt zurück (kein
+ * Re-Render, kein neuer Abruf).
+ */
+export function rolleZeitraum<
+  T extends { preset?: string; days: number; start?: Date | string; end?: Date | string },
+>(prev: T, now: Date = new Date()): T {
+  if (prev.preset === "custom" || !prev.end) return prev;
+  const frisch = letzteTage(prev.days, now);
+  if (isoDay(frisch.end) === isoDay(new Date(prev.end))) return prev;
+  return { ...prev, start: frisch.start, end: frisch.end };
+}
+
 // ── Navigations-Typ ──────────────────────────────────────────────────────────
 /**
  * true bei Seiten-Reload oder Vor/Zurück — dann stellen die Apps die letzte
