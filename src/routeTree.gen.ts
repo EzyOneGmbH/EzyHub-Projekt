@@ -71,6 +71,7 @@ import { Route as ApiAdminChatgptAdsRouteImport } from './routes/api/admin.chatg
 import { Route as ApiAdminChatgptAdsCreativeRouteImport } from './routes/api/admin.chatgpt-ads-creative'
 import { Route as ApiAdminChatgptAdsReportRouteImport } from './routes/api/admin.chatgpt-ads-report'
 import { Route as ApiAdminClientContextRouteImport } from './routes/api/admin.client-context'
+import { Route as ApiAdminBrainExportRouteImport } from './routes/api/admin.brain-export'
 import { Route as ApiAdminClientDomainsRouteImport } from './routes/api/admin.client-domains'
 import { Route as ApiAdminClientFlagsRouteImport } from './routes/api/admin.client-flags'
 import { Route as ApiAdminClientKontextRouteImport } from './routes/api/admin.client-kontext'
@@ -543,6 +544,11 @@ const ApiAdminChatgptAdsReportRoute =
 const ApiAdminClientContextRoute = ApiAdminClientContextRouteImport.update({
   id: '/api/admin/client-context',
   path: '/api/admin/client-context',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminBrainExportRoute = ApiAdminBrainExportRouteImport.update({
+  id: '/api/admin/brain-export',
+  path: '/api/admin/brain-export',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminClientDomainsRoute = ApiAdminClientDomainsRouteImport.update({
@@ -1389,6 +1395,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/chatgpt-ads-creative': typeof ApiAdminChatgptAdsCreativeRoute
   '/api/admin/chatgpt-ads-report': typeof ApiAdminChatgptAdsReportRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
+  '/api/admin/brain-export': typeof ApiAdminBrainExportRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
   '/api/admin/client-kontext': typeof ApiAdminClientKontextRoute
@@ -1602,6 +1609,7 @@ export interface FileRoutesByTo {
   '/api/admin/chatgpt-ads-creative': typeof ApiAdminChatgptAdsCreativeRoute
   '/api/admin/chatgpt-ads-report': typeof ApiAdminChatgptAdsReportRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
+  '/api/admin/brain-export': typeof ApiAdminBrainExportRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
   '/api/admin/client-kontext': typeof ApiAdminClientKontextRoute
@@ -1816,6 +1824,7 @@ export interface FileRoutesById {
   '/api/admin/chatgpt-ads-creative': typeof ApiAdminChatgptAdsCreativeRoute
   '/api/admin/chatgpt-ads-report': typeof ApiAdminChatgptAdsReportRoute
   '/api/admin/client-context': typeof ApiAdminClientContextRoute
+  '/api/admin/brain-export': typeof ApiAdminBrainExportRoute
   '/api/admin/client-domains': typeof ApiAdminClientDomainsRoute
   '/api/admin/client-flags': typeof ApiAdminClientFlagsRoute
   '/api/admin/client-kontext': typeof ApiAdminClientKontextRoute
@@ -2031,6 +2040,7 @@ export interface FileRouteTypes {
     | '/api/admin/chatgpt-ads-creative'
     | '/api/admin/chatgpt-ads-report'
     | '/api/admin/client-context'
+    | '/api/admin/brain-export'
     | '/api/admin/client-domains'
     | '/api/admin/client-flags'
     | '/api/admin/client-kontext'
@@ -2244,6 +2254,7 @@ export interface FileRouteTypes {
     | '/api/admin/chatgpt-ads-creative'
     | '/api/admin/chatgpt-ads-report'
     | '/api/admin/client-context'
+    | '/api/admin/brain-export'
     | '/api/admin/client-domains'
     | '/api/admin/client-flags'
     | '/api/admin/client-kontext'
@@ -2457,6 +2468,7 @@ export interface FileRouteTypes {
     | '/api/admin/chatgpt-ads-creative'
     | '/api/admin/chatgpt-ads-report'
     | '/api/admin/client-context'
+    | '/api/admin/brain-export'
     | '/api/admin/client-domains'
     | '/api/admin/client-flags'
     | '/api/admin/client-kontext'
@@ -2666,6 +2678,7 @@ export interface RootRouteChildren {
   ApiAdminChatgptAdsCreativeRoute: typeof ApiAdminChatgptAdsCreativeRoute
   ApiAdminChatgptAdsReportRoute: typeof ApiAdminChatgptAdsReportRoute
   ApiAdminClientContextRoute: typeof ApiAdminClientContextRoute
+  ApiAdminBrainExportRoute: typeof ApiAdminBrainExportRoute
   ApiAdminClientDomainsRoute: typeof ApiAdminClientDomainsRoute
   ApiAdminClientFlagsRoute: typeof ApiAdminClientFlagsRoute
   ApiAdminClientKontextRoute: typeof ApiAdminClientKontextRoute
@@ -3220,6 +3233,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/client-context'
       fullPath: '/api/admin/client-context'
       preLoaderRoute: typeof ApiAdminClientContextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/brain-export': {
+      id: '/api/admin/brain-export'
+      path: '/api/admin/brain-export'
+      fullPath: '/api/admin/brain-export'
+      preLoaderRoute: typeof ApiAdminBrainExportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/client-domains': {
@@ -4524,6 +4544,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminChatgptAdsCreativeRoute: ApiAdminChatgptAdsCreativeRoute,
   ApiAdminChatgptAdsReportRoute: ApiAdminChatgptAdsReportRoute,
   ApiAdminClientContextRoute: ApiAdminClientContextRoute,
+  ApiAdminBrainExportRoute: ApiAdminBrainExportRoute,
   ApiAdminClientDomainsRoute: ApiAdminClientDomainsRoute,
   ApiAdminClientFlagsRoute: ApiAdminClientFlagsRoute,
   ApiAdminClientKontextRoute: ApiAdminClientKontextRoute,
