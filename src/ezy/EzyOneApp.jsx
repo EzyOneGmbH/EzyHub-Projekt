@@ -6948,16 +6948,27 @@ function App({ appScope = null }) {
   // Native-Mobile (2h): "Heute" ist der Handy-Einstieg statt Dashboard —
   // nur beim frischen Einstieg (kein Reload/Deep-Link) und nur wo es ein
   // Dashboard gibt. Auf dem Desktop wird "heute" nie gerendert → zurück.
+  // 20.11.: «Heute» gibt es nur, wenn das Login genau einen Kunden sieht. Bei mehreren
+  // Kunden öffnet die App direkt das Dashboard, und der Tab entfällt.
+  const kundenGeladen = !ezy.loading && !caa.loading;
+  const heuteErlaubt = kundenGeladen && clients.length === 1;
   const heuteInit = useRef(false);
   useEffect(() => {
-    if (heuteInit.current) return;
+    if (heuteInit.current || !kundenGeladen) return;
     heuteInit.current = true;
-    if (isMobile && !appStart && !deepLink.tab && page === "dashboard" && !isReloadNavigation())
+    if (
+      heuteErlaubt &&
+      isMobile &&
+      !appStart &&
+      !deepLink.tab &&
+      page === "dashboard" &&
+      !isReloadNavigation()
+    )
       setPage("heute");
-  }, [isMobile, appStart, deepLink, page]);
+  }, [kundenGeladen, heuteErlaubt, isMobile, appStart, deepLink, page]);
   useEffect(() => {
-    if (!isMobile && page === "heute") setPage("dashboard");
-  }, [isMobile, page]);
+    if (page === "heute" && (!isMobile || (kundenGeladen && !heuteErlaubt))) setPage("dashboard");
+  }, [isMobile, page, kundenGeladen, heuteErlaubt]);
   useEffect(() => {
     if (scope && page === "dashboard" && !scope.tabs.includes(tab)) setTab(scope.primary);
   }, [scope, page, tab]);
@@ -8133,13 +8144,17 @@ function App({ appScope = null }) {
             }}
           >
             {[
-              {
-                id: "heute",
-                label: "Heute",
-                Icon: Home,
-                on: () => setPage("heute"),
-                active: page === "heute",
-              },
+              ...(heuteErlaubt
+                ? [
+                    {
+                      id: "heute",
+                      label: "Heute",
+                      Icon: Home,
+                      on: () => setPage("heute"),
+                      active: page === "heute",
+                    },
+                  ]
+                : []),
               ...nav.slice(0, 3).map((n) => ({
                 id: n.id,
                 label: n.label,

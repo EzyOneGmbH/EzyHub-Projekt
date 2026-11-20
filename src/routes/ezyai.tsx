@@ -4688,12 +4688,9 @@ function EzyAiApp() {
   const { profile } = useEzyProfile();
   const ezy = useEzyClients();
   const [swOpen, setSwOpen] = useState(false);
-  // Native-Mobile (2h): "Heute" ist der Handy-Einstieg (<900px), sonst Dashboard.
-  const [view, setView] = useState<"dashboard" | "agent" | "heute">(() =>
-    typeof window !== "undefined" && window.innerWidth < 900 && !blogEinstieg()
-      ? "heute"
-      : "dashboard",
-  );
+  // Einstieg ist das Dashboard. «Heute» gibt es nur auf dem Handy (<900px) und nur, wenn
+  // das Login genau einen Kunden sieht (20.11.) — siehe heuteErlaubt weiter unten.
+  const [view, setView] = useState<"dashboard" | "agent" | "heute">("dashboard");
   // aktiver Sidebar-App-Bereich
   const [section, setSection] = useState(() => (blogEinstieg() ? "blog" : "aeo-insights"));
   // Organic/Ads-Schalter (26.08.): Ads = ChatGPT-Ads-Conversions (OpenAI
@@ -4994,6 +4991,18 @@ function EzyAiApp() {
     if (!adsMode) setAdsMode(true);
     if (view === "heute") setView("dashboard");
   }, [nurAds, ansichtLaedt, adsMode, view]);
+  // 20.11.: «Heute» nur bei genau einem Kunden. Bei mehreren öffnet direkt das Dashboard.
+  const kundenGeladen = !ezy.loading && !caa.loading && !ansichtLaedt;
+  const heuteErlaubt = kundenGeladen && clients.length === 1 && !nurAds;
+  const heuteInit = useRef(false);
+  useEffect(() => {
+    if (heuteInit.current || !kundenGeladen) return;
+    heuteInit.current = true;
+    if (heuteErlaubt && window.innerWidth < 900 && !blogEinstieg()) setView("heute");
+  }, [kundenGeladen, heuteErlaubt]);
+  useEffect(() => {
+    if (view === "heute" && kundenGeladen && !heuteErlaubt) setView("dashboard");
+  }, [view, kundenGeladen, heuteErlaubt]);
   const adsNavFuerRolle = useMemo(
     () =>
       role === "viewer"
@@ -5808,7 +5817,7 @@ function EzyAiApp() {
             Dashboard/Agent + Apps; ersetzt die Rail auf dem Handy. EzyPilot sitzt
             oben im Header (20.11.), wie in EzyRank. */}
           <nav className="ezyai-tabbar">
-            {!nurAds && (
+            {heuteErlaubt && (
               <button
                 onClick={() => setView("heute")}
                 style={tabBtn(view === "heute")}
