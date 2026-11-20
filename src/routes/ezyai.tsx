@@ -4653,6 +4653,16 @@ const S = {
 };
 const SIDEBAR_W = 210;
 
+// Mobile Chip-Leiste: den aktiven Bereich in Sicht holen (nur seitlich, die Seite bleibt
+// stehen). Als ref am aktiven Chip, damit es auch greift, wenn die Leiste erst nach dem
+// Laden erscheint.
+const chipInSicht = (chip: HTMLElement | null) => {
+  const leiste = chip?.parentElement;
+  if (!chip || !leiste || leiste.scrollWidth <= leiste.clientWidth) return;
+  const c = chip.getBoundingClientRect();
+  const l = leiste.getBoundingClientRect();
+  leiste.scrollTo({ left: leiste.scrollLeft + c.left - l.left - (l.width - c.width) / 2 });
+};
 // Redesign 1b (2h): Stil eines Bottom-Tab-Bar-Buttons (aktiv = Akzentfarbe).
 const tabBtn = (active: boolean): React.CSSProperties => ({
   flex: 1,
@@ -4704,16 +4714,6 @@ function EzyAiApp() {
     }
   }, [adsMode]);
   const [adsSection, setAdsSection] = useState("ads-overview");
-  // Mobile Chip-Leiste: den aktiven Bereich in Sicht holen (nur seitlich, die Seite bleibt stehen).
-  useEffect(() => {
-    const leiste = document.querySelector<HTMLElement>(".ezyai-chips");
-    const aktiv = leiste?.querySelector<HTMLElement>('[aria-current="true"]');
-    if (!leiste || !aktiv || leiste.scrollWidth <= leiste.clientWidth) return;
-    leiste.scrollTo({
-      left: aktiv.offsetLeft - (leiste.clientWidth - aktiv.offsetWidth) / 2,
-      behavior: "smooth",
-    });
-  }, [section, adsSection, adsMode]);
   // Kundenlogins: interne Ads-Bereiche (auch per Link aus dem Dashboard) nie
   // anzeigen — zurueck aufs Dashboard.
   useEffect(() => {
@@ -5240,6 +5240,7 @@ function EzyAiApp() {
                           <button
                             key={t.id}
                             aria-current={a ? "true" : undefined}
+                            ref={a ? chipInSicht : undefined}
                             onClick={() => {
                               setView("dashboard");
                               (adsMode ? setAdsSection : setSection)(t.id);
