@@ -650,7 +650,8 @@ function Schreibregeln({ projektId, agentur }: { projektId: string; agentur: boo
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 12,
+                  flexWrap: "wrap",
+                  gap: "0 12px",
                   padding: "8px 0",
                   borderTop: i === 0 ? "none" : `1px solid ${HAARLINIE}`,
                 }}
@@ -661,7 +662,7 @@ function Schreibregeln({ projektId, agentur }: { projektId: string; agentur: boo
                     alignItems: "center",
                     gap: 12,
                     minHeight: 44,
-                    flex: 1,
+                    flex: "1 1 200px",
                     minWidth: 0,
                     cursor: fest ? "default" : "pointer",
                   }}

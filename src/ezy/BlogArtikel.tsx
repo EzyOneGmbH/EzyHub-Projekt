@@ -197,6 +197,16 @@ const STIL = `
 .ezr-artikel figcaption{font-size:13px;color:${P.muted}}
 .ezr-artikel table{display:block;overflow-x:auto;border-collapse:collapse;margin:0 0 16px;font-size:15px}
 .ezr-artikel th,.ezr-artikel td{border:1px solid ${P.input};padding:8px 10px;text-align:left}
+@media (max-width:999px){
+  /* Schmale Bildschirme: Spalten nicht auf Buchstabenbreite quetschen, die Tabelle scrollt seitlich. */
+  .ezr-artikel th,.ezr-artikel td{min-width:96px;overflow-wrap:normal;word-break:normal;hyphens:auto}
+}
+@media (max-width:380px){
+  /* Aussendisplay faltbarer Geräte und kleine Handys. */
+  .ezr-artikel{font-size:16px}
+  .ezr-artikel h2{font-size:21px}
+  .ezr-artikel[contenteditable="true"]{padding:14px 12px}
+}
 .ezr-artikel hr{border:none;border-top:1px solid ${P.input};margin:24px 0}
 .ezr-artikel details{margin:0 0 12px}
 .ezr-artikel summary{font-weight:700;cursor:pointer}

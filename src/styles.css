@@ -210,3 +210,58 @@ html[data-i18n-warten] body {
     display: inline-flex;
   }
 }
+
+/* ── Faltbare Geräte und sehr schmale Bildschirme (20.11.2026) ───────────── */
+/* Aussendisplay (zugeklappt, ca. 280–380 px): Raster mit fester Mindestbreite
+   würden über den Rand laufen — eine Spalte. Gilt in allen Apps, auch ausserhalb
+   von .app-content (EzyAI, Blog-Vollbild). */
+@media (max-width: 380px) {
+  [style*="minmax(200px"],
+  [style*="minmax(220px"],
+  [style*="minmax(240px"],
+  [style*="minmax(260px"],
+  [style*="minmax(300px"],
+  [style*="minmax(320px"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  /* Feste Mindestbreiten von Flex-Kacheln lösen, damit sie umbrechen statt drücken. */
+  [style*="min-width: 220px"],
+  [style*="min-width: 240px"],
+  [style*="min-width: 260px"] {
+    min-width: 0 !important;
+  }
+  .tabbar {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}
+/* Umschalter (Organic/Ads und andere Segmente) mit dem Daumen treffbar. */
+@media (hover: none) and (pointer: coarse) {
+  [role="tablist"] > [role="tab"] {
+    min-height: 36px;
+  }
+}
+/* Innendisplay (aufgeklappt, fast quadratisch, ca. 600–900 px breit): Dialoge
+   und Seitenleisten richten sich nach der sichtbaren Höhe (dvh), nicht nach der
+   Höhe mit eingeblendeter Browserleiste. */
+@supports (height: 100dvh) {
+  @media (max-width: 760px) {
+    .client-drawer,
+    .quick-audit-panel {
+      height: 88dvh !important;
+    }
+  }
+  .ezr-rand {
+    max-height: calc(100dvh - 32px) !important;
+  }
+}
+/* Geräte mit Falz in der Mitte (zwei Bildschirmhälften nebeneinander): Dialoge
+   nicht über den Falz legen, sondern in die rechte Hälfte. */
+@media (horizontal-viewport-segments: 2) and (min-width: 761px) {
+  .client-drawer,
+  .quick-audit-panel {
+    width: env(viewport-segment-width 1 0, 50vw) !important;
+    max-width: none !important;
+  }
+}
