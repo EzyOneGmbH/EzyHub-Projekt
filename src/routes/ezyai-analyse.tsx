@@ -333,7 +333,9 @@ function EzyAiAnalyseApp() {
           <style>{`
             .anl-body { margin-left: 210px; }
             .anl-tabbar { display: none; }
+            .anl-mfab { display: none; }
             @media (max-width: 900px) {
+              .anl-mfab { display: inline-flex; }
               .app-sidebar { display: none !important; }
               .anl-body { margin-left: 0; }
               /* Mobile-QA 22.08.: Header doppelt die Bottom-Bar -> weg */
@@ -428,6 +430,10 @@ function EzyAiAnalyseApp() {
                   <AppVersionBadge appId="analyse" />
                   <EzyPilotButton />
                 </span>
+                {/* EzyPilot mobil immer oben im Header, wie in EzyRank (20.11.). */}
+                <span className="anl-mfab">
+                  <EzyPilotFab size={34} />
+                </span>
               </div>
             </header>
 
@@ -487,9 +493,6 @@ function EzyAiAnalyseApp() {
               <span style={{ fontSize: 19 }}>🕘</span>
               <span style={{ fontSize: 9.5, fontWeight: 700 }}>Verlauf</span>
             </button>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <EzyPilotFab size={44} elevated />
-            </div>
             <a href="/apps" style={{ ...anlTab(false), textDecoration: "none" }}>
               <span style={{ fontSize: 19 }}>✦</span>
               <span style={{ fontSize: 9.5, fontWeight: 700 }}>Apps</span>

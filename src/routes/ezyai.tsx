@@ -5162,7 +5162,7 @@ function EzyAiApp() {
             {/* ── Content ──────────────────────────────────────────────────────── */}
             <div className="ezyai-body">
               {/* Mobile-Nav (2h): Kunden-Pill + App-Bereiche als Chips.
-                Dashboard/Agent + Apps + EzyPilot leben in der Bottom-Tab-Bar. */}
+                Dashboard/Agent + Apps leben in der Bottom-Tab-Bar, EzyPilot oben rechts. */}
               <div className="ezyai-mnav">
                 <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
                   {/* Mobile (02.10.): gleiche Kunden-Pille wie auf dem Desktop
@@ -5188,7 +5188,7 @@ function EzyAiApp() {
                       outline: "none",
                       flex: "0 1 auto",
                       minWidth: 0,
-                      maxWidth: "calc(100% - 110px)",
+                      maxWidth: "calc(100% - 150px)",
                       textOverflow: "ellipsis",
                     }}
                   >
@@ -5211,6 +5211,8 @@ function EzyAiApp() {
                     {(showAll || !HIDDEN_HEADER_ACTIONS_IN_CLIENT_VIEW.has("bell")) && (
                       <NotificationsBell S={S} />
                     )}
+                    {/* EzyPilot mobil immer oben im Header, wie in EzyRank (20.11.). */}
+                    <EzyPilotFab size={34} />
                   </span>
                 </div>
                 {/* Bereichs-Chips nur mit gewähltem Kunden — "Alle Kunden" = leer.
@@ -5399,7 +5401,7 @@ function EzyAiApp() {
                     </span>
                   )}
                   {/* EzyPilot oben rechts — wie in EzyRank/EzyPerformance (Volkan 13.08.);
-                    mobil versteckt (FAB in der Bottom-Bar). */}
+                    mobil als runder Knopf in der Leiste oben (.ezyai-mnav). */}
                   {(showAll || !HIDDEN_HEADER_ACTIONS_IN_CLIENT_VIEW.has("ezypilot")) && (
                     <span className="ezyai-hm" style={{ display: "inline-flex" }}>
                       <EzyPilotButton />
@@ -5803,7 +5805,8 @@ function EzyAiApp() {
             </div>
           </div>
           {/* Redesign 1b (Screen 2h): native Bottom-Tab-Bar (nur <900px) —
-            Dashboard/Agent + EzyPilot + Apps; ersetzt die Rail auf dem Handy. */}
+            Dashboard/Agent + Apps; ersetzt die Rail auf dem Handy. EzyPilot sitzt
+            oben im Header (20.11.), wie in EzyRank. */}
           <nav className="ezyai-tabbar">
             {!nurAds && (
               <button
@@ -5836,9 +5839,6 @@ function EzyAiApp() {
                 <span style={{ fontSize: 9.5, fontWeight: 700 }}>Ezy Tools</span>
               </button>
             )}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <EzyPilotFab size={44} elevated />
-            </div>
             {/* Kunden-Logins (09.10.): «Apps» nur bei mehr als einer freien App. */}
             {(role !== "viewer" || PORTAL_RAIL_APPS.filter((id) => canOpen(id)).length > 1) && (
               <a
