@@ -252,8 +252,10 @@ html[data-i18n-warten] body {
       height: 88dvh !important;
     }
   }
-  .ezr-rand {
-    max-height: calc(100dvh - 32px) !important;
+  @media (min-width: 1000px) {
+    .ezr-rand {
+      max-height: calc(100dvh - 32px) !important;
+    }
   }
 }
 /* Geräte mit Falz in der Mitte (zwei Bildschirmhälften nebeneinander): Dialoge
@@ -264,4 +266,68 @@ html[data-i18n-warten] body {
     width: env(viewport-segment-width 1 0, 50vw) !important;
     max-width: none !important;
   }
+}
+
+/* ── Mobile Menüleisten (20.11.2026) ───────────────────────────────────────────
+   Untere Leiste (EzyRank .mobile-tabbar, EzyAI .ezyai-tabbar) und die
+   Bereichs-Chips oben in EzyAI. */
+.mobile-tabbar > button,
+.ezyai-tabbar > button,
+.ezyai-tabbar > a {
+  position: relative;
+  min-width: 0;
+  max-width: 136px;
+  min-height: 48px;
+  justify-content: center;
+  border-radius: 12px;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-tabbar > button > span,
+.ezyai-tabbar > button > span,
+.ezyai-tabbar > a > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Aktiver Eintrag: Strich an der Oberkante, nicht nur die Farbe. */
+.mobile-tabbar > [aria-current="page"]::before,
+.ezyai-tabbar > [aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  width: 26px;
+  height: 3px;
+  margin-left: -13px;
+  border-radius: 0 0 3px 3px;
+  background: currentColor;
+}
+.mobile-tabbar > button:active,
+.ezyai-tabbar > button:active,
+.ezyai-tabbar > a:active {
+  background: rgba(43, 0, 51, 0.06);
+}
+.mobile-tabbar > button:focus-visible,
+.ezyai-tabbar > button:focus-visible,
+.ezyai-tabbar > a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+/* Bereichs-Chips: seitlich wischen ohne Scrollbalken, rechts läuft die Leiste aus,
+   damit sichtbar ist, dass es weitergeht. */
+.ezyai-chips {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  padding-right: 28px;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+.ezyai-chips::-webkit-scrollbar {
+  display: none;
+}
+.ezyai-chips > button {
+  flex-shrink: 0;
+  min-height: 38px;
 }

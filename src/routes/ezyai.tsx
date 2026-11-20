@@ -4704,6 +4704,16 @@ function EzyAiApp() {
     }
   }, [adsMode]);
   const [adsSection, setAdsSection] = useState("ads-overview");
+  // Mobile Chip-Leiste: den aktiven Bereich in Sicht holen (nur seitlich, die Seite bleibt stehen).
+  useEffect(() => {
+    const leiste = document.querySelector<HTMLElement>(".ezyai-chips");
+    const aktiv = leiste?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!leiste || !aktiv || leiste.scrollWidth <= leiste.clientWidth) return;
+    leiste.scrollTo({
+      left: aktiv.offsetLeft - (leiste.clientWidth - aktiv.offsetWidth) / 2,
+      behavior: "smooth",
+    });
+  }, [section, adsSection, adsMode]);
   // Kundenlogins: interne Ads-Bereiche (auch per Link aus dem Dashboard) nie
   // anzeigen — zurueck aufs Dashboard.
   useEffect(() => {
@@ -5205,7 +5215,10 @@ function EzyAiApp() {
                 </div>
                 {/* Bereichs-Chips nur mit gewähltem Kunden — "Alle Kunden" = leer.
                   Ads-Modus (26.08.): eigener Chip-Satz + kompakter Schalter. */}
-                <div style={{ display: "flex", gap: 6, alignItems: "center", overflowX: "auto" }}>
+                <div
+                  className="ezyai-chips"
+                  style={{ display: "flex", gap: 6, alignItems: "center", overflowX: "auto" }}
+                >
                   {view !== "heute" && adsFuerKunde && !nurAds && (
                     <OrganicAdsSwitch
                       adsMode={adsMode}
@@ -5226,6 +5239,7 @@ function EzyAiApp() {
                         return (
                           <button
                             key={t.id}
+                            aria-current={a ? "true" : undefined}
                             onClick={() => {
                               setView("dashboard");
                               (adsMode ? setAdsSection : setSection)(t.id);
@@ -5794,6 +5808,7 @@ function EzyAiApp() {
               <button
                 onClick={() => setView("heute")}
                 style={tabBtn(view === "heute")}
+                aria-current={view === "heute" ? "page" : undefined}
                 title="Heute"
               >
                 <Home size={21} />
@@ -5803,6 +5818,7 @@ function EzyAiApp() {
             <button
               onClick={() => setView("dashboard")}
               style={tabBtn(view === "dashboard")}
+              aria-current={view === "dashboard" ? "page" : undefined}
               title="Dashboard"
             >
               <LayoutDashboard size={21} />
@@ -5812,6 +5828,7 @@ function EzyAiApp() {
               <button
                 onClick={() => setView("agent")}
                 style={tabBtn(view === "agent")}
+                aria-current={view === "agent" ? "page" : undefined}
                 title="Ezy Tools"
               >
                 <Zap size={21} />

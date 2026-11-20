@@ -8165,6 +8165,7 @@ function App({ appScope = null }) {
               <button
                 key={t.id}
                 onClick={t.on}
+                aria-current={t.active ? "page" : undefined}
                 style={{
                   flex: 1,
                   display: "flex",
