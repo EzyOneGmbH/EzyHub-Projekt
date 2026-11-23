@@ -7,8 +7,53 @@ import {
   rankVergleichbar,
   rankVergleichGrund,
   sistrixLandDesLaufs,
+  SISTRIX_VERALTET_TAGE,
   stichtagIso,
+  waehleSistrixLauf,
 } from "./seo-overview.server";
+
+describe("waehleSistrixLauf (Sistrix-Ausfall verdeckt den Vorwert nicht)", () => {
+  const l = (id: string, zeit: string, wert: any) => ({ id, created_at: zeit, wert });
+  it("neuester Lauf mit Wert bleibt der neueste", () => {
+    const r = waehleSistrixLauf([
+      l("b", "2026-11-23T04:31:00Z", { visibility_index: 0.0185, country: "ch" }),
+      l("a", "2026-11-22T17:16:00Z", { visibility_index: 0.018 }),
+    ]);
+    expect(r.lauf?.id).toBe("b");
+    expect(r.alterTage).toBe(0);
+  });
+  it("neuester Lauf ohne Sistrix (23.11.2026): Wert vom Vorabend, kein Rueckstand", () => {
+    const r = waehleSistrixLauf([
+      l("b", "2026-11-23T04:40:00Z", null),
+      l("a", "2026-11-22T17:16:00Z", { visibility_index: 0.015, country: "ch" }),
+    ]);
+    expect(r.lauf?.id).toBe("a");
+    expect(r.alterTage).toBe(0);
+  });
+  it("mehrere Tage Ausfall (12.–15.11.2026): Wert bleibt, Rueckstand wird gemeldet", () => {
+    const r = waehleSistrixLauf([
+      l("e", "2026-11-15T17:16:00Z", null),
+      l("d", "2026-11-15T04:30:00Z", { visibility_index: 0 }),
+      l("c", "2026-11-14T04:30:00Z", null),
+      l("b", "2026-11-13T04:30:00Z", null),
+      l("a", "2026-11-12T04:30:00Z", { visibility_index: 1.2 }),
+    ]);
+    expect(r.lauf?.id).toBe("a");
+    expect(r.alterTage).toBe(3);
+    expect(r.alterTage).toBeGreaterThanOrEqual(SISTRIX_VERALTET_TAGE);
+  });
+  it("kein Lauf mit Wert: neuester Lauf (Hinweis «Kein Sistrix-Wert» bleibt)", () => {
+    const r = waehleSistrixLauf([
+      l("b", "2026-11-23T04:40:00Z", null),
+      l("a", "2026-11-22T17:16:00Z", { visibility_index: 0 }),
+    ]);
+    expect(r.lauf?.id).toBe("b");
+    expect(r.alterTage).toBe(0);
+  });
+  it("keine Laeufe", () => {
+    expect(waehleSistrixLauf([])).toEqual({ lauf: null, alterTage: 0 });
+  });
+});
 
 describe("sistrixLandDesLaufs", () => {
   it("liest das gespeicherte Land, Altlaeufe ohne Angabe gelten als CH", () => {

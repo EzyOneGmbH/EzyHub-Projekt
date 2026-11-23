@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.7.6",
+    version: "2.7.7",
     changelog: [
+      {
+        version: "2.7.7",
+        date: "2026-11-23",
+        note: "Übersicht «Alle Kunden»: Der Visibility Index nimmt den neuesten Lauf mit vorhandenem Sistrix-Wert. Fällt ein einzelner Sistrix-Abruf aus, bleibt der letzte gültige Wert sichtbar und es erscheint kein Warndreieck; erst ab drei Tagen Rückstand wird das Datum des Werts als Hinweis genannt",
+      },
       {
         version: "2.7.6",
         date: "2026-11-19",

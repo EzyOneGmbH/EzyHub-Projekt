@@ -181,6 +181,45 @@ async function letzterLauf(
   return (data as Lauf | null) ?? null;
 }
 
+/** Suchtiefe fuer den Sistrix-Wert: 2 Backlink-Laeufe pro Tag → rund 5 Tage zurueck. */
+const SISTRIX_SUCHTIEFE = 10;
+/** Ab so vielen Tagen Rueckstand auf den neuesten Lauf wird der Wert als veraltet gemeldet. */
+export const SISTRIX_VERALTET_TAGE = 3;
+
+/**
+ * Sistrix-Lauf waehlen (23.11.2026): der neueste Lauf MIT Wert, nicht einfach
+ * der neueste. Faellt der Sistrix-Abruf in einem Lauf aus (result.sistrix =
+ * null), verdeckte der leere Lauf sonst den gueltigen Wert des Vorlaufs.
+ * `laeufe` neuester zuerst. Ohne jeden Wert: der neueste Lauf (alterTage 0).
+ */
+export function waehleSistrixLauf<T extends { created_at: string; wert?: any }>(
+  laeufe: T[],
+): { lauf: T | null; alterTage: number } {
+  const neuester = laeufe[0] ?? null;
+  const mitWert = laeufe.find((l) => {
+    const n = Number(l?.wert?.visibility_index);
+    return l?.wert?.visibility_index != null && Number.isFinite(n) && n > 0;
+  });
+  if (!neuester || !mitWert) return { lauf: neuester, alterTage: 0 };
+  const ms = Date.parse(neuester.created_at) - Date.parse(mitWert.created_at);
+  return { lauf: mitWert, alterTage: Number.isFinite(ms) ? Math.floor(ms / 86_400_000) : 0 };
+}
+
+async function letzterSistrixLauf(
+  clientId: string,
+  bisIso: string | null,
+): Promise<{ lauf: Lauf | null; alterTage: number }> {
+  let q = (supabaseAdmin as any)
+    .from("audit_runs")
+    .select("id, created_at, wert:result->sistrix")
+    .eq("client_id", clientId)
+    .eq("audit_type", "ahrefs")
+    .eq("status", "succeeded");
+  if (bisIso) q = q.lte("created_at", bisIso);
+  const { data } = await q.order("created_at", { ascending: false }).limit(SISTRIX_SUCHTIEFE);
+  return waehleSistrixLauf(Array.isArray(data) ? (data as Lauf[]) : []);
+}
+
 /** Land des gespeicherten Sistrix-Werts (result.sistrix.country); fehlt es, galt «ch». */
 export function sistrixLandDesLaufs(l: { wert?: any } | null): string {
   return String(l?.wert?.country || "ch").toLowerCase();
@@ -210,7 +249,7 @@ export async function fetchSeoOverviewZeile(
   // frisch: stündliches Vorwärmen rechnet immer neu und überschreibt den Speicher.
   const hit = opts.frisch
     ? null
-    : await cacheLesen<SeoOverviewZeile>("seo", `${key}|${googleErlaubt ? 1 : 0}|r3`);
+    : await cacheLesen<SeoOverviewZeile>("seo", `${key}|${googleErlaubt ? 1 : 0}|r4`);
   if (hit) return hit;
 
   const cur: SeoKennzahlen = { ...LEER };
@@ -225,14 +264,16 @@ export async function fetchSeoOverviewZeile(
   // Volkan: «komplett zurück zur alten Rechnung»): Tabellen-Basis = getrackte
   // Keywords (Position Crawl, sonst GSC-Ø) + nicht getrackte GSC-Queries
   // (lib/rankKacheln). Der SEO-Report rechnet weiter mit der DataForSEO-Messung.
-  const [rCur, rPrev, vCur, vPrev, gCur, gPrev] = await Promise.all([
+  const [rCur, rPrev, sCur, sPrev, gCur, gPrev] = await Promise.all([
     letzterLauf(kunde.id, "rankings", "result->keywords", bisCur, ", ort:result->>crawlLocation"),
     letzterLauf(kunde.id, "rankings", "result->keywords", bisPrev, ", ort:result->>crawlLocation"),
-    letzterLauf(kunde.id, "ahrefs", "result->sistrix", bisCur),
-    letzterLauf(kunde.id, "ahrefs", "result->sistrix", bisPrev),
+    letzterSistrixLauf(kunde.id, bisCur),
+    letzterSistrixLauf(kunde.id, bisPrev),
     letzterLauf(kunde.id, "gsc_queries", "result->topNonbrandQueries", bisCur),
     letzterLauf(kunde.id, "gsc_queries", "result->topNonbrandQueries", bisPrev),
   ]);
+  const vCur = sCur.lauf;
+  const vPrev = sPrev.lauf;
   const tabelle = (r: Lauf | null, g: Lauf | null) =>
     zaehleRankKacheln(Array.isArray(r?.wert) ? r.wert : [], Array.isArray(g?.wert) ? g.wert : []);
   // Gleiche Zaehlmethode fuer beide Laeufe -> nur der Standort-Guard bleibt relevant.
@@ -268,6 +309,10 @@ export async function fetchSeoOverviewZeile(
   if (vPrev && vCur && vPrev.id !== vCur.id && sistrixLandDesLaufs(vPrev) === visibilityLand)
     prev.visibility = vi(vPrev);
   if (cur.visibility == null) hinweise.push("Kein Sistrix-Wert bis Zeitraum-Ende");
+  else if (vCur && sCur.alterTage >= SISTRIX_VERALTET_TAGE) {
+    const [y, m, d] = String(vCur.created_at).slice(0, 10).split("-");
+    hinweise.push(`Sistrix-Wert vom ${d}.${m}.${y} (neuere Abrufe ohne Wert)`);
+  }
 
   // ── Traffic: GA4 (Organic Search), Fallback GSC ────────────────────────────
   if (!googleErlaubt) {
@@ -371,6 +416,6 @@ export async function fetchSeoOverviewZeile(
     error: null,
   };
   if (seoZeileSpeicherbar(zeile))
-    await cacheSchreiben("seo", `${key}|${googleErlaubt ? 1 : 0}|r3`, kunde.id, zeile);
+    await cacheSchreiben("seo", `${key}|${googleErlaubt ? 1 : 0}|r4`, kunde.id, zeile);
   return zeile;
 }
