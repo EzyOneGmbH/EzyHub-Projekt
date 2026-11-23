@@ -288,8 +288,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.39.2",
+    version: "1.40.0",
     changelog: [
+      {
+        version: "1.40.0",
+        date: "2026-11-23",
+        note: "ChatGPT Ads: Plattform-Targeting mit getrennten Browsern (Desktop, iOS, Android) neben «Web gesamt» und den Apps — im Kampagnen-Assistenten, im Targeting-Editor und in der Aufteilung nach Plattform; Conversions werden überall mit demselben Attributionsfenster abgerufen (30 Tage Klick, 1 Tag View) und das Fenster steht bei der Aufteilung; neues «Protokoll von OpenAI» im Änderungsverlauf zeigt auch Änderungen, die direkt im OpenAI Ads Manager gemacht wurden",
+      },
       {
         version: "1.39.2",
         date: "2026-11-19",

@@ -12,6 +12,7 @@ import {
   AccountControls,
   AudienceModifyForm,
   AudiencesEditor,
+  AuditLogList,
   BreakdownCard,
   TargetingEditor,
   CampaignDrilldown,
@@ -55,6 +56,7 @@ type Campaign = {
     custom_audiences?: { ids?: string[] };
     excluded_custom_audiences?: { ids?: string[] };
     excluded_locations?: { include?: GeoLocation[] };
+    platforms?: { included?: string[] } | null;
   } | null;
   conversion_event_setting_ids?: string[] | null;
 };
@@ -1223,6 +1225,11 @@ function ManagerView({
           ))}
         </div>
       )}
+
+      {/* Protokoll von OpenAI: auch Änderungen direkt im Ads Manager (auf Klick) */}
+      <div style={card}>
+        <AuditLogList clientId={clientId} S={S} limit={15} lazy />
+      </div>
     </div>
   );
 }
@@ -1470,9 +1477,10 @@ function CampaignRow({
                 S={S}
                 initial={locs}
                 initialExcluded={c.targeting?.excluded_locations?.include || []}
+                initialPlatforms={c.targeting?.platforms?.included || []}
                 busy={busy === `set_targeting:${c.openai_campaign_id}`}
-                onSave={async (locations, excludedLocations) => {
-                  if (await onCmd("set_targeting", { locations, excludedLocations }))
+                onSave={async (locations, excludedLocations, platforms) => {
+                  if (await onCmd("set_targeting", { locations, excludedLocations, platforms }))
                     onEditorSaved();
                 }}
                 onCancel={() => onToggleEditor("targeting")}

@@ -30,8 +30,9 @@ import { zeitraum, zeitraumAusParams } from "@/lib/date-range";
 // fuer Demo/E2E. Personalisierte Anzeigen (Custom Audiences) sind in EEA/CH
 // laut developers.openai.com/ads/custom-audiences NICHT verfuegbar — die
 // Audience-Zuweisung liefert dafuer einen Hinweis (personalisierungsHinweis).
-// Plattform-Targeting kennt laut developers.openai.com/ads/campaign-targeting
-// nur `ios_app` | `android_app` | `web` (targeting.platforms.included).
+// Plattform-Targeting (targeting.platforms.included) kennt seit 11/2026 sechs
+// Werte: `web` (alle Browser) | `desktop_web` | `ios_web` | `android_web` |
+// `ios_app` | `android_app` — siehe AUSBAU 23.11.2026 weiter unten.
 //
 // AUSBAU 01.09.2026 (API-Neuerungen, Doku developers.openai.com/ads geprüft):
 // - Geo-Targeting: GET /geo_lookup/search?q= liefert Locations (country/
@@ -49,14 +50,18 @@ import { zeitraum, zeitraumAusParams } from "@/lib/date-range";
 // GET  ?client=<uuid>&start=YYYY-MM-DD&end=YYYY-MM-DD
 //      -> { ok, connected, account, campaigns, insights, commands, audiences }
 // POST { action: "connect" | "sync" | "sync-all" | "command" | "bulk" |
-//        "geo-search" | "audience-create" | "audience-sync" | "audience-archive" }
+//        "geo-search" | "audience-create" | "audience-sync" | "audience-archive" |
+//        "audit-log" }
 //      connect (owner/admin): { clientId, apiKey, adAccountId? }
 //      sync    (owner/admin): { clientId }
 //      command (owner/admin): { clientId, cmd: "pause"|"activate"|"set_budget"|
 //                               "set_targeting"|"set_audiences", targetType: "campaign",
-//                               targetId, budgetDailyMicros?, locations?, includeIds?, excludeIds? }
+//                               targetId, budgetDailyMicros?, locations?, excludedLocations?,
+//                               platforms?, includeIds?, excludeIds? }
 //      bulk    (owner/admin): { clientId, cmd: "pause"|"activate", targetIds: string[] }
 //      geo-search (owner/admin): { clientId, q } -> { locations }
+//      audit-log (owner/admin): { clientId, campaignId?, adGroupId?, adId?, limit?, after? }
+//                               -> { rows, hasMore, lastId } (OpenAI-Protokoll, live)
 //      audience-create (owner/admin): { clientId, name, description?, identifierType, hashes: string[] }
 //      audience-sync / audience-archive (owner/admin): { clientId, audienceId? }
 //      sync-all (nur Admin-Secret): alle aktiven Konten sequenziell.
@@ -76,8 +81,77 @@ import { zeitraum, zeitraumAusParams } from "@/lib/date-range";
 // - Bulk API ist laut Doku «limited preview, pro Konto freigeschaltet» und
 //   nicht in der Spec — der 404-Fallback auf Einzel-Calls ist der Normalfall.
 // Mock: Conversions-Setup wird in chatgpt_ads_accounts.mock_state persistiert.
+//
+// AUSBAU 23.11.2026 (API-Stand 11/2026, Doku developers.openai.com/ads):
+// - Plattformen: Web ist in desktop_web / ios_web / android_web aufgeteilt;
+//   `web` bleibt als «alle Browser» gültig. set_targeting und campaign-create
+//   nehmen `platforms` (leer = alle Plattformen → targeting.platforms: null;
+//   {} oder {included: []} lehnt die API mit 400 ab). Die Aufschlüsselung
+//   «nach Plattform» liefert die Web-Werte getrennt.
+// - Attributionsfenster: seit 30.09.2026 gilt ohne Angabe 30 Tage Klick +
+//   1 Tag View. Wir senden das Fenster jetzt AUSDRÜCKLICH (ATTRIBUTION) auf
+//   allen Insight-Aufrufen, damit Conversions/CPA/ROAS über alle Abrufe
+//   gleich gerechnet sind und eine spätere Default-Änderung nichts verschiebt.
+// - Audit-Logs: GET /audit_logs zeigt Änderungen, die direkt im OpenAI Ads
+//   Manager gemacht wurden — action "audit-log" (live, nicht gespeichert),
+//   neben unserem eigenen Protokoll chatgpt_ads_commands.
 
 const ADS_API = "https://api.ads.openai.com/v1";
+
+// Ein Attributionsfenster für alle Insight-Aufrufe (= aktueller API-Default
+// und Anzeige im Ads Manager, damit gespeicherte Zahlen nicht springen).
+// conversion_time hat laut Doku nur begrenzte Abdeckung → ad_event_time.
+const ATTRIBUTION = {
+  clickDays: 30,
+  viewDays: 1,
+  timeBasis: "ad_event_time",
+} as const;
+const ATTRIBUTION_QUERY: Record<string, string> = {
+  attribution_window_days: String(ATTRIBUTION.clickDays),
+  view_through_attribution_window_days: String(ATTRIBUTION.viewDays),
+  attribution_time_basis: ATTRIBUTION.timeBasis,
+};
+const ATTRIBUTION_BODY = {
+  attribution_window_days: ATTRIBUTION.clickDays,
+  view_through_attribution_window_days: ATTRIBUTION.viewDays,
+  attribution_time_basis: ATTRIBUTION.timeBasis,
+};
+
+// Plattform-Targeting: `web` umfasst alle Browser; einzelne Browser-Plattformen
+// werden laut Doku OHNE `web` angegeben.
+const AD_PLATFORMS = [
+  "web",
+  "desktop_web",
+  "ios_web",
+  "android_web",
+  "ios_app",
+  "android_app",
+] as const;
+const WEB_PLATFORM_PARTS = ["desktop_web", "ios_web", "android_web"];
+/** undefined = Plattformen nicht anfassen · [] = Einschränkung aufheben. */
+function normalizePlatforms(v: unknown): string[] | undefined | { error: string } {
+  if (v === undefined || v === null) return undefined;
+  if (!Array.isArray(v)) return { error: "platforms muss eine Liste sein" };
+  const list = Array.from(new Set(v.map((x) => String(x).trim()).filter(Boolean)));
+  const bad = list.filter((p) => !(AD_PLATFORMS as readonly string[]).includes(p));
+  if (bad.length) return { error: `Plattform unbekannt: ${bad.join(", ")}` };
+  const out = list.includes("web") ? list.filter((p) => !WEB_PLATFORM_PARTS.includes(p)) : list;
+  // Alle sechs bzw. Web + beide Apps = keine Einschränkung.
+  const all =
+    out.includes("ios_app") &&
+    out.includes("android_app") &&
+    (out.includes("web") || WEB_PLATFORM_PARTS.every((p) => out.includes(p)));
+  return all ? [] : out;
+}
+/** targeting-Objekt aus einem GET für ein Update säubern: ein leerer
+ *  Plattform-Teil ({} / {included: []} / null) würde mit 400 abgelehnt —
+ *  weglassen heisst laut Doku «Auswahl bleibt, wie sie ist». */
+function stripEmptyPlatforms(targeting: Record<string, any>): Record<string, any> {
+  const inc = targeting?.platforms?.included;
+  if (targeting && "platforms" in targeting && !(Array.isArray(inc) && inc.length))
+    delete targeting.platforms;
+  return targeting;
+}
 
 async function adsFetch(
   apiKey: string,
@@ -513,6 +587,9 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
   let insightsError: string | null = null;
   // Diagnose fuer die CTC-Abfrage (erscheint im sync-Ergebnis).
   const ctcDebug: any[] = [];
+  // false, sobald ein Aufruf das ausdrückliche Attributionsfenster ablehnt
+  // (dann gilt der API-Default) — erscheint im sync-Ergebnis.
+  let attributionExplicit = true;
   for (const L of LEVELS) {
     const core = [
       `${L.level}.id`,
@@ -522,20 +599,29 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
       `${L.level}.clicks`,
       `${L.level}.spend`,
     ];
-    const insightsQuery = (fields: string[]) => ({
+    const insightsQuery = (fields: string[], attribution: boolean) => ({
       time_granularity: "daily",
       aggregation_level: L.level,
       limit: "2000",
       "time_ranges[]": [timeRange],
       "fields[]": fields,
+      // Attributionsfenster ausdrücklich (23.11.) — nur mit Conversion-Feldern.
+      ...(attribution ? ATTRIBUTION_QUERY : {}),
     });
     let ins = await adsFetch(apiKey, acc.openai_ad_account_id, "/ad_account/insights", {
-      query: insightsQuery([...core, ...EXTRA_FIELDS]),
+      query: insightsQuery([...core, ...EXTRA_FIELDS], true),
     });
-    // Falls ein Attributions-Feld für das Konto unbekannt ist (400): Kern-Felder.
+    // 400-Kaskade, damit der Sync nie an einem Parameter hängt: erst ohne
+    // ausdrückliches Fenster (API-Default), dann nur Kern-Felder.
+    if (!ins.ok && ins.status === 400) {
+      attributionExplicit = false;
+      ins = await adsFetch(apiKey, acc.openai_ad_account_id, "/ad_account/insights", {
+        query: insightsQuery([...core, ...EXTRA_FIELDS], false),
+      });
+    }
     if (!ins.ok && ins.status === 400)
       ins = await adsFetch(apiKey, acc.openai_ad_account_id, "/ad_account/insights", {
-        query: insightsQuery(core),
+        query: insightsQuery(core, false),
       });
     if (!ins.ok) {
       insightsError = `Insights (${L.level}) HTTP ${ins.status}: ${JSON.stringify(ins.json)?.slice(0, 200)}`;
@@ -574,27 +660,36 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
     // (Endpoint kann für ein Konto fehlen).
     const entIds = L.level === "campaign" ? campaignIds : L.level === "ad_group" ? groupIds : adIds;
     if (!entIds.length) continue;
-    const cv = await adsFetch(apiKey, acc.openai_ad_account_id, "/conversions/insights", {
+    const ctcBody = {
+      aggregation_level: L.level,
+      time_granularity: "daily",
+      // time_ranges ist auch hier ein Array von JSON-STRINGS (die API lehnt
+      // Objekte ab: «expected a string, but got an object»), Typ unix_range —
+      // und die Zeitstempel muessen auf volle Stunden fallen (Minute/Sekunde 0).
+      time_ranges: [
+        JSON.stringify({
+          type: "unix_range",
+          start: String(localMidnightUnix(since.toISOString().slice(0, 10), tz)),
+          end: String(
+            localMidnightUnix(new Date(Date.now() + 864e5).toISOString().slice(0, 10), tz),
+          ),
+        }),
+      ],
+      entity_ids: entIds.slice(0, 500),
+      group_by_entity: true,
+    };
+    // Gleiches Fenster wie die GET-Insights (23.11.); bei 400 ohne Angabe.
+    let cv = await adsFetch(apiKey, acc.openai_ad_account_id, "/conversions/insights", {
       method: "POST",
-      body: {
-        aggregation_level: L.level,
-        time_granularity: "daily",
-        // time_ranges ist auch hier ein Array von JSON-STRINGS (die API lehnt
-        // Objekte ab: «expected a string, but got an object»), Typ unix_range —
-        // und die Zeitstempel muessen auf volle Stunden fallen (Minute/Sekunde 0).
-        time_ranges: [
-          JSON.stringify({
-            type: "unix_range",
-            start: String(localMidnightUnix(since.toISOString().slice(0, 10), tz)),
-            end: String(
-              localMidnightUnix(new Date(Date.now() + 864e5).toISOString().slice(0, 10), tz),
-            ),
-          }),
-        ],
-        entity_ids: entIds.slice(0, 500),
-        group_by_entity: true,
-      },
+      body: { ...ctcBody, ...ATTRIBUTION_BODY },
     });
+    if (!cv.ok && cv.status === 400) {
+      attributionExplicit = false;
+      cv = await adsFetch(apiKey, acc.openai_ad_account_id, "/conversions/insights", {
+        method: "POST",
+        body: ctcBody,
+      });
+    }
     if (!cv.ok)
       ctcDebug.push({
         level: L.level,
@@ -633,6 +728,9 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
     audiences,
     insightsError,
     ctcDebug,
+    // Verwendetes Attributionsfenster; explicit=false = API hat die Angabe
+    // abgelehnt und mit ihrem Default gerechnet.
+    attribution: { ...ATTRIBUTION, explicit: attributionExplicit },
   };
 }
 
@@ -936,6 +1034,10 @@ async function runCommand(
           country_code: l.country_code ? String(l.country_code) : undefined,
         }))
     : [];
+  // Plattformen (23.11.): undefined = nicht anfassen · [] = Einschränkung aufheben.
+  const pf0 = cmd === "set_targeting" ? normalizePlatforms(payload?.platforms) : undefined;
+  if (pf0 !== undefined && !Array.isArray(pf0)) return finish(false, pf0.error);
+  const platforms = pf0 as string[] | undefined;
 
   if (acc.is_mock) {
     // Mock: nur DB-Status/Budget/Targeting aendern — kein API-Call.
@@ -954,6 +1056,10 @@ async function runCommand(
       targeting.locations = { include: locations.map((l) => ({ id: l.id })) };
       // Mock speichert die Ausschlüsse mit Namen (wie die echte API sie liefert).
       targeting.excluded_locations = { include: excludedLocations };
+      if (platforms) {
+        if (platforms.length) targeting.platforms = { included: platforms };
+        else delete targeting.platforms;
+      }
       upd = { targeting_locations: locations, raw: { ...raw, targeting } };
     } else if (cmd === "set_audiences") {
       targeting.custom_audiences = { ids: includeIds };
@@ -995,10 +1101,12 @@ async function runCommand(
     // ersetzen — sonst würde ein Locations-Update die Audiences löschen.
     const g0 = await adsFetch(apiKey, acc.openai_ad_account_id, `/campaigns/${targetId}`);
     if (!g0.ok) return finish(false, `Kampagne nicht lesbar (HTTP ${g0.status})`);
-    const targeting = { ...(g0.json?.targeting || {}) };
+    const targeting = stripEmptyPlatforms({ ...(g0.json?.targeting || {}) });
     if (cmd === "set_targeting") {
       targeting.locations = { include: locations.map((l) => ({ id: l.id })) };
       targeting.excluded_locations = { include: excludedLocations.map((l) => ({ id: l.id })) };
+      // null hebt nur die Plattform-Einschränkung auf (Standorte/Audiences bleiben).
+      if (platforms) targeting.platforms = platforms.length ? { included: platforms } : null;
     } else {
       targeting.custom_audiences = { ids: includeIds };
       targeting.excluded_custom_audiences = { ids: excludeIds };
@@ -1447,14 +1555,101 @@ const MOCK_SPLIT: Record<string, Array<[string, number]>> = {
     ["desktop", 0.36],
     ["tablet", 0.03],
   ],
-  // Plattform-Werte wie die API (campaign-targeting, Stand 09/2026):
-  // web | ios_app | android_app.
+  // Plattform-Werte wie die API (Stand 11/2026): Web getrennt nach
+  // desktop_web | ios_web | android_web, dazu ios_app | android_app.
   platform: [
-    ["web", 0.55],
+    ["desktop_web", 0.34],
+    ["ios_web", 0.13],
+    ["android_web", 0.08],
     ["ios_app", 0.3],
     ["android_app", 0.15],
   ],
 };
+
+// Deutsche Bezeichnungen der Plattform-Werte. `web` erscheint in der
+// Aufschlüsselung nur noch für Zeiträume vor der Aufteilung.
+const PLATFORM_LABEL: Record<string, string> = {
+  web: "Web (nicht aufgeteilt)",
+  desktop_web: "Desktop-Browser",
+  ios_web: "iOS-Browser",
+  android_web: "Android-Browser",
+  ios_app: "iOS-App",
+  android_app: "Android-App",
+};
+const segmentLabel = (segment: string, raw: string): string =>
+  segment === "platform" ? PLATFORM_LABEL[raw] || raw : raw;
+
+// ── Audit-Log von OpenAI (GET /audit_logs, 23.11.) ──────────────────────────
+// `changes` ist freies JSON; Blätter haben die Form { before, after }.
+type AuditChange = { field: string; before: string | null; after: string | null };
+function auditChanges(changes: any): AuditChange[] {
+  const out: AuditChange[] = [];
+  const txt = (v: any): string | null =>
+    v == null ? null : (typeof v === "string" ? v : JSON.stringify(v)).slice(0, 300);
+  const walk = (node: any, path: string, depth: number) => {
+    if (!node || typeof node !== "object" || Array.isArray(node) || depth > 4) return;
+    if ("before" in node || "after" in node) {
+      if (out.length < 25)
+        out.push({ field: path, before: txt(node.before), after: txt(node.after) });
+      return;
+    }
+    for (const [k, v] of Object.entries(node)) walk(v, path ? `${path}.${k}` : k, depth + 1);
+  };
+  walk(changes, "", 0);
+  return out;
+}
+const auditRow = (a: any) => ({
+  id: String(a?.id || ""),
+  type: String(a?.audit_log_type || ""),
+  objType: a?.obj_type ? String(a.obj_type) : null,
+  objId: a?.obj_id ? String(a.obj_id) : null,
+  name: a?.item_name ? String(a.item_name) : null,
+  actorType: a?.actor_type ? String(a.actor_type) : null,
+  actorId: a?.actor_id ? String(a.actor_id) : null,
+  campaignId: a?.campaign_id ? String(a.campaign_id) : null,
+  adGroupId: a?.ad_group_id ? String(a.ad_group_id) : null,
+  changes: auditChanges(a?.changes),
+  at: tsToIso(a?.ts),
+});
+function mockAuditLog(): any[] {
+  const now = Math.floor(Date.now() / 1000);
+  const row = (id: string, camp: string, name: string, changes: any, ageSec: number) => ({
+    id,
+    audit_log_type: "update_campaign",
+    obj_type: "Campaign",
+    obj_id: camp,
+    item_name: name,
+    actor_type: "user",
+    actor_id: "user_mock",
+    campaign_id: camp,
+    ad_group_id: null,
+    changes: { obj_type: "Campaign", ...changes },
+    ts: now - ageSec,
+  });
+  return [
+    row(
+      "alog_mock_3",
+      "cmp_mock_brand",
+      "Brand Awareness CH",
+      { budget: { daily_spend_limit_micros: { before: 40_000_000, after: 50_000_000 } } },
+      5 * 3600,
+    ),
+    row(
+      "alog_mock_2",
+      "cmp_mock_promo",
+      "Herbst-Promo",
+      { status: { before: "active", after: "paused" } },
+      2 * 86400,
+    ),
+    row(
+      "alog_mock_1",
+      "cmp_mock_leads",
+      "Lead-Gen Beratung",
+      { name: { before: "Lead-Gen", after: "Lead-Gen Beratung" } },
+      6 * 86400,
+    ),
+  ];
+}
 
 // ── Conversions-Setup + Ad-Vorschau (Spec v2.3.0, 13.09.) ───────────────────
 type ConvPixel = { id: string; name: string; pixel_id: string; client_type?: string };
@@ -1969,6 +2164,8 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           audiences: audiences || [],
           ads,
           adGroups,
+          // Attributionsfenster der gespeicherten Conversion-Zahlen (23.11.).
+          attribution: ATTRIBUTION,
         });
       },
 
@@ -2173,6 +2370,10 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             {
               budgetDailyMicros: body?.budgetDailyMicros,
               locations: body?.locations,
+              // 23.11.: Ausschlüsse wurden hier bisher nicht durchgereicht und
+              // gingen beim Speichern des Targetings verloren.
+              excludedLocations: body?.excludedLocations,
+              platforms: body?.platforms,
               includeIds: body?.includeIds,
               excludeIds: body?.excludeIds,
               eventSettingIds: body?.eventSettingIds,
@@ -2578,6 +2779,41 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
           }
         };
 
+        if (action === "audit-log") {
+          // Änderungsprotokoll von OpenAI: enthält auch, was direkt im Ads
+          // Manager geändert wurde (unser chatgpt_ads_commands kennt nur
+          // Änderungen über EzyHub). Live abgefragt, nicht gespeichert.
+          const limit = Math.min(100, Math.max(1, Math.round(Number(body?.limit) || 30)));
+          const idOf = (v: any) => String(v || "").trim() || null;
+          const after = idOf(body?.after);
+          const campaignId = idOf(body?.campaignId);
+          const adGroupId = idOf(body?.adGroupId);
+          const adId = idOf(body?.adId);
+          if (acc.is_mock) {
+            const rows = mockAuditLog()
+              .filter((a) => !campaignId || a.campaign_id === campaignId)
+              .filter(() => !adGroupId && !adId)
+              .map(auditRow);
+            return Response.json({ ok: true, rows, hasMore: false, lastId: null, mock: true });
+          }
+          const key = keyOf();
+          if (key instanceof Response) return key;
+          const query: Record<string, string> = { limit: String(limit), order: "desc" };
+          if (after) query.after = after;
+          // Der engste Filter gewinnt (Kampagne schliesst Gruppen + Anzeigen ein).
+          if (adId) query.ad_id = adId;
+          else if (adGroupId) query.ad_group_id = adGroupId;
+          else if (campaignId) query.campaign_id = campaignId;
+          const r = await adsFetch(key, acc.openai_ad_account_id, "/audit_logs", { query });
+          if (!r.ok) return Response.json({ ok: false, error: httpErr(r) }, { status: 502 });
+          return Response.json({
+            ok: true,
+            rows: (Array.isArray(r.json?.data) ? r.json.data : []).map(auditRow),
+            hasMore: !!r.json?.has_more,
+            lastId: r.json?.last_id ? String(r.json.last_id) : null,
+          });
+        }
+
         if (action === "image-upload") {
           const b64 = String(body?.dataBase64 || "");
           const mime = String(body?.mimeType || "image/jpeg");
@@ -2652,6 +2888,11 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             : [];
           if (inc.length) targeting.custom_audiences = { ids: inc };
           if (exc.length) targeting.excluded_custom_audiences = { ids: exc };
+          // Plattformen (23.11.): leer/alle = keine Einschränkung → Feld weglassen.
+          const pfC = normalizePlatforms(body?.platforms);
+          if (pfC !== undefined && !Array.isArray(pfC))
+            return Response.json({ ok: false, error: pfC.error }, { status: 400 });
+          if (pfC && pfC.length) targeting.platforms = { included: pfC };
           const payload: any = {
             name,
             status,
@@ -3086,6 +3327,7 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
               t[k] != null
             )
               targeting[k] = t[k]; // weitere Targeting-Felder (Plattform, Alter …) 1:1
+          stripEmptyPlatforms(targeting); // leeres platforms-Objekt gäbe HTTP 400
           const kern: any = {
             name: neuerName,
             status: "paused",
@@ -3670,23 +3912,31 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
                 .flatMap(([date, d]: any) =>
                   MOCK_SPLIT[segment].map(([label, f]) => ({
                     date,
-                    label,
+                    label: segmentLabel(segment, label),
+                    key: label,
                     impressions: Math.round(d.imp * f),
                     clicks: Math.round(d.clk * f),
                     spend: Math.round(d.sp * f * 100) / 100,
                     conversions: Math.round(d.cv * f),
                   })),
                 );
-              return Response.json({ ok: true, segment, rows, mock: true });
+              return Response.json({
+                ok: true,
+                segment,
+                rows,
+                mock: true,
+                attribution: ATTRIBUTION,
+              });
             }
             const rows = MOCK_SPLIT[segment].map(([label, f]) => ({
-              label,
+              label: segmentLabel(segment, label),
+              key: label,
               impressions: Math.round(tot.imp * f),
               clicks: Math.round(tot.clk * f),
               spend: Math.round(tot.sp * f * 100) / 100,
               conversions: Math.round(tot.cv * f),
             }));
-            return Response.json({ ok: true, segment, rows, mock: true });
+            return Response.json({ ok: true, segment, rows, mock: true, attribution: ATTRIBUTION });
           }
           const key = keyOf();
           if (key instanceof Response) return key;
@@ -3711,39 +3961,52 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             until: end,
             timezone: acc.timezone || "UTC",
           });
-          let r = await adsFetch(key, acc.openai_ad_account_id, path, {
-            query: {
-              time_granularity: daily ? "daily" : "none",
-              aggregation_level: campaignId ? "campaign" : "ad_account",
-              limit: "500",
-              "time_ranges[]": [tr],
-              "segments[]": [segment],
-              "fields[]": fields,
-            },
+          const bdQuery = (f: string[], attribution: boolean) => ({
+            time_granularity: daily ? "daily" : "none",
+            aggregation_level: campaignId ? "campaign" : "ad_account",
+            limit: "500",
+            "time_ranges[]": [tr],
+            "segments[]": [segment],
+            "fields[]": f,
+            ...(attribution ? ATTRIBUTION_QUERY : {}),
           });
+          // Gleiches Attributionsfenster wie der Sync (23.11.). 400-Kaskade:
+          // ohne ausdrückliches Fenster, dann ohne Conversions.
+          let attributionExplicit = true;
+          let r = await adsFetch(key, acc.openai_ad_account_id, path, {
+            query: bdQuery(fields, true),
+          });
+          if (!r.ok && r.status === 400) {
+            attributionExplicit = false;
+            r = await adsFetch(key, acc.openai_ad_account_id, path, {
+              query: bdQuery(fields, false),
+            });
+          }
           if (!r.ok && r.status === 400)
             r = await adsFetch(key, acc.openai_ad_account_id, path, {
-              query: {
-                time_granularity: daily ? "daily" : "none",
-                aggregation_level: campaignId ? "campaign" : "ad_account",
-                limit: "500",
-                "time_ranges[]": [tr],
-                "segments[]": [segment],
-                "fields[]": fields.slice(0, 4),
-              },
+              query: bdQuery(fields.slice(0, -1), false),
             });
           if (!r.ok) return Response.json({ ok: false, error: httpErr(r) }, { status: 502 });
           const rows = (r.json?.data || []).map((row: any) => ({
             ...(daily
               ? { date: row.readable_time?.slice(0, 10) || tsToIso(row.start_time)?.slice(0, 10) }
               : {}),
-            label: String(row.country_name ?? row.device_type ?? row.platform ?? "?"),
+            label: segmentLabel(
+              segment,
+              String(row.country_name ?? row.device_type ?? row.platform ?? "?"),
+            ),
+            key: String(row.country_name ?? row.device_type ?? row.platform ?? "?"),
             impressions: Number(row[`${segment}_impressions`] ?? row.impressions ?? 0),
             clicks: Number(row[`${segment}_clicks`] ?? row.clicks ?? 0),
             spend: Number(row[`${segment}_spend`] ?? row.spend ?? 0),
             conversions: row.conversions != null ? Number(row.conversions) : null,
           }));
-          return Response.json({ ok: true, segment, rows });
+          return Response.json({
+            ok: true,
+            segment,
+            rows,
+            attribution: { ...ATTRIBUTION, explicit: attributionExplicit },
+          });
         }
 
         if (action === "account-command") {

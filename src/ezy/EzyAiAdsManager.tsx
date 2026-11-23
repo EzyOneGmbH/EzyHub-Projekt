@@ -15,6 +15,7 @@ import { isoDay, type ResolvedRange } from "@/ezy/data/rangeStore";
 import {
   AccountControls,
   AudiencesEditor,
+  AuditLogList,
   CampaignDrilldown,
   CampaignWizard,
   ImagePicker,
@@ -2282,6 +2283,9 @@ export default function EzyAiAdsManager({
                           {expanded!.kind === "history" ? (
                             <HistoryPanel
                               S={S}
+                              clientId={clientId}
+                              level={level}
+                              targetId={r.id}
                               rows={data.commands.filter(
                                 (c) =>
                                   c.target_openai_id === r.id ||
@@ -2748,16 +2752,29 @@ export default function EzyAiAdsManager({
 }
 
 /* ── Änderungsverlauf je Objekt (Audit-Zeilen) ────────────────────────────── */
-function HistoryPanel({ S, rows }: { S: Tokens; rows: CmdRow[] }) {
-  if (!rows.length)
-    return (
-      <div style={{ fontSize: 12.5, color: "#777", padding: "8px 0" }}>
-        Keine Änderungen über EzyHub protokolliert.
-      </div>
-    );
+// Oben unser eigenes Protokoll (nur Änderungen über EzyHub), darunter das
+// Protokoll von OpenAI — dort steht auch, was direkt im Ads Manager geändert wurde.
+function HistoryPanel({
+  S,
+  rows,
+  clientId,
+  level,
+  targetId,
+}: {
+  S: Tokens;
+  rows: CmdRow[];
+  clientId: string;
+  level: Level;
+  targetId: string;
+}) {
   return (
     <div style={{ fontSize: 12.5 }}>
-      <div style={{ fontWeight: 600, color: "#111", margin: "8px 0" }}>Änderungsverlauf</div>
+      <div style={{ fontWeight: 600, color: "#111", margin: "8px 0" }}>Änderungen über EzyHub</div>
+      {!rows.length && (
+        <div style={{ color: "#777", padding: "4px 0" }}>
+          Keine Änderungen über EzyHub protokolliert.
+        </div>
+      )}
       {rows.slice(0, 30).map((c, i) => (
         <div
           key={i}
@@ -2786,6 +2803,16 @@ function HistoryPanel({ S, rows }: { S: Tokens; rows: CmdRow[] }) {
           </span>
         </div>
       ))}
+      <div style={{ marginTop: 14 }}>
+        <AuditLogList
+          clientId={clientId}
+          S={S}
+          campaignId={level === "campaign" ? targetId : undefined}
+          adGroupId={level === "ad_group" ? targetId : undefined}
+          adId={level === "ad" ? targetId : undefined}
+          limit={30}
+        />
+      </div>
     </div>
   );
 }
@@ -2903,9 +2930,16 @@ function CampaignEditor({
             S={S}
             initial={(campaign.targeting_locations || []) as GeoLocation[]}
             initialExcluded={campaign.targeting?.excluded_locations?.include || []}
+            initialPlatforms={campaign.targeting?.platforms?.included || []}
             busy={busy === "targeting"}
-            onSave={async (locations, excludedLocations) => {
-              if (await cmd("targeting", "set_targeting", { locations, excludedLocations }))
+            onSave={async (locations, excludedLocations, platforms) => {
+              if (
+                await cmd("targeting", "set_targeting", {
+                  locations,
+                  excludedLocations,
+                  platforms,
+                })
+              )
                 setSub(null);
             }}
             onCancel={() => setSub(null)}

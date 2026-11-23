@@ -57,6 +57,7 @@ export type CampaignLite = {
     custom_audiences?: { ids?: string[] };
     excluded_custom_audiences?: { ids?: string[] };
     excluded_locations?: { include?: GeoLocation[] };
+    platforms?: { included?: string[] } | null;
   } | null;
   conversion_event_setting_ids?: string[] | null;
 };
@@ -156,6 +157,242 @@ const statusPill = (status: string) =>
   ) : (
     <Pill label={status} color="#8b8da3" />
   );
+
+/* ── Plattform-Auswahl (targeting.platforms), wiederverwendbar ────────────── */
+// «web» umfasst alle Browser (auch mobile). Die drei einzelnen Browser-Werte
+// nimmt die API nur OHNE «web» an — darum schliessen sie sich gegenseitig aus.
+// Leere Auswahl = keine Einschränkung.
+const AD_PLATFORM_OPTIONS: Array<{ id: string; label: string }> = [
+  { id: "web", label: "Web gesamt" },
+  { id: "desktop_web", label: "Desktop-Browser" },
+  { id: "ios_web", label: "iOS-Browser" },
+  { id: "android_web", label: "Android-Browser" },
+  { id: "ios_app", label: "iOS-App" },
+  { id: "android_app", label: "Android-App" },
+];
+const WEB_PLATFORM_PARTS = ["desktop_web", "ios_web", "android_web"];
+export function PlatformPicker({
+  S,
+  value,
+  onChange,
+}: {
+  S: Tokens;
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const toggle = (id: string) => {
+    if (value.includes(id)) {
+      onChange(value.filter((x) => x !== id));
+      return;
+    }
+    const rest =
+      id === "web"
+        ? value.filter((x) => !WEB_PLATFORM_PARTS.includes(x))
+        : WEB_PLATFORM_PARTS.includes(id)
+          ? value.filter((x) => x !== "web")
+          : value;
+    onChange([...rest, id]);
+  };
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+      {AD_PLATFORM_OPTIONS.map((o) => {
+        const on = value.includes(o.id);
+        return (
+          <button
+            key={o.id}
+            type="button"
+            aria-pressed={on}
+            onClick={() => toggle(o.id)}
+            style={{
+              border: `1px solid ${on ? accentOf(S) : S.line}`,
+              background: on ? accentOf(S) : "transparent",
+              color: on ? "#fff" : inkOf(S),
+              borderRadius: 999,
+              padding: "4px 11px",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+      {!value.length && (
+        <span style={{ fontSize: 11.5, color: S.mut }}>keine Einschränkung (alle Plattformen)</span>
+      )}
+    </div>
+  );
+}
+
+/* ── Protokoll von OpenAI (GET /audit_logs, live) ─────────────────────────── */
+// Zeigt alle Änderungen am Konto — auch jene, die direkt im OpenAI Ads Manager
+// gemacht wurden. Unser eigenes Protokoll (chatgpt_ads_commands) kennt nur
+// Änderungen über EzyHub.
+type AuditLogRow = {
+  id: string;
+  type: string;
+  objType: string | null;
+  objId: string | null;
+  name: string | null;
+  actorType: string | null;
+  actorId: string | null;
+  campaignId: string | null;
+  adGroupId: string | null;
+  changes: Array<{ field: string; before: string | null; after: string | null }>;
+  at: string | null;
+};
+const fmtAuditTime = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleString("de-CH", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
+const auditVal = (field: string, v: string | null) => {
+  if (v == null || v === "") return "—";
+  // Beträge kommen in Micros — lesbar als Währungseinheit zeigen.
+  if (/_micros$/.test(field) && /^\d+$/.test(v))
+    return (Number(v) / 1_000_000).toLocaleString("de-CH", { maximumFractionDigits: 2 });
+  return v.length > 60 ? `${v.slice(0, 60)}…` : v;
+};
+export function AuditLogList({
+  clientId,
+  S,
+  campaignId,
+  adGroupId,
+  adId,
+  limit = 20,
+  lazy = false,
+}: {
+  clientId: string;
+  S: Tokens;
+  campaignId?: string;
+  adGroupId?: string;
+  adId?: string;
+  limit?: number;
+  /** true = erst auf Klick laden (spart den Live-Abruf bei jedem Seitenaufruf). */
+  lazy?: boolean;
+}) {
+  const [rows, setRows] = useState<AuditLogRow[] | null>(null);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [next, setNext] = useState<string | null>(null);
+  const [mock, setMock] = useState(false);
+  const load = useCallback(
+    async (after?: string) => {
+      setLoading(true);
+      setErr("");
+      const j = await adsPost({
+        action: "audit-log",
+        clientId,
+        campaignId,
+        adGroupId,
+        adId,
+        limit,
+        after,
+      });
+      setLoading(false);
+      if (!j.ok) {
+        setErr(j.error || "Fehler");
+        return;
+      }
+      const neu: AuditLogRow[] = j.rows || [];
+      setRows((alt) => (after && alt ? [...alt, ...neu] : neu));
+      setNext(j.hasMore && j.lastId ? String(j.lastId) : null);
+      setMock(!!j.mock);
+    },
+    [clientId, campaignId, adGroupId, adId, limit],
+  );
+  useEffect(() => {
+    if (!lazy) load();
+  }, [lazy, load]);
+  const linkBtn: React.CSSProperties = {
+    border: `1px solid ${S.line}`,
+    borderRadius: 8,
+    padding: "3px 10px",
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    background: "transparent",
+    color: inkOf(S),
+  };
+  return (
+    <div style={{ fontSize: 12.5 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
+          flexWrap: "wrap",
+          margin: "8px 0",
+        }}
+      >
+        <span style={{ fontWeight: 700, color: inkOf(S) }}>Protokoll von OpenAI</span>
+        <span style={{ fontSize: 11.5, color: S.mut }}>
+          alle Änderungen, auch direkt im OpenAI Ads Manager
+          {mock ? " · Demo-Daten" : ""}
+        </span>
+        {lazy && rows === null && !loading && (
+          <button type="button" onClick={() => load()} style={linkBtn}>
+            Anzeigen
+          </button>
+        )}
+      </div>
+      {err && <div style={{ color: "#dc2626", padding: "4px 0" }}>{err}</div>}
+      {loading && rows === null && <div style={{ color: S.mut, padding: "4px 0" }}>Lade…</div>}
+      {rows !== null && rows.length === 0 && (
+        <div style={{ color: S.mut, padding: "4px 0" }}>Keine Einträge.</div>
+      )}
+      {(rows || []).map((a) => (
+        <div
+          key={a.id}
+          style={{
+            display: "flex",
+            gap: 12,
+            padding: "5px 0",
+            borderBottom: `1px solid ${S.line}`,
+          }}
+        >
+          <span style={{ minWidth: 92, color: S.mut }}>{fmtAuditTime(a.at)}</span>
+          <span style={{ minWidth: 150, fontWeight: 600, color: inkOf(S) }}>
+            {a.type || "Änderung"}
+          </span>
+          <span style={{ flex: 1, minWidth: 0, color: S.mut }}>
+            <span style={{ color: inkOf(S) }}>{a.name || a.objId || ""}</span>
+            {a.changes.map((c, i) => (
+              <span
+                key={i}
+                title={`${c.field}: ${c.before ?? "—"} → ${c.after ?? "—"}`}
+                style={{
+                  display: "block",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {c.field}: {auditVal(c.field, c.before)} → {auditVal(c.field, c.after)}
+              </span>
+            ))}
+          </span>
+          <span style={{ color: S.mut }}>{a.actorType || ""}</span>
+        </div>
+      ))}
+      {next && (
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => load(next)}
+          style={{ ...linkBtn, marginTop: 8 }}
+        >
+          {loading ? "Lade…" : "Weitere laden"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 /* ── Geo-Suche (geo_lookup) als Chip-Editor, wiederverwendbar ─────────────── */
 export function GeoChips({
@@ -612,6 +849,7 @@ export function CampaignWizard({
   const [end, setEnd] = useState(dayInput(pc?.end_time));
   const [locs, setLocs] = useState<GeoLocation[]>(pc?.targeting_locations || []);
   const [excl, setExcl] = useState<GeoLocation[]>(pc?.targeting?.excluded_locations?.include || []);
+  const [platforms, setPlatforms] = useState<string[]>(pc?.targeting?.platforms?.included || []);
   const [incAud, setIncAud] = useState<string[]>(pc?.targeting?.custom_audiences?.ids || []);
   const [excAud, setExcAud] = useState<string[]>(
     pc?.targeting?.excluded_custom_audiences?.ids || [],
@@ -687,6 +925,7 @@ export function CampaignWizard({
       endTime: end || undefined,
       locations: locs,
       excludedLocations: excl,
+      platforms: platforms.length ? platforms : undefined,
       includeIds: incAud,
       excludeIds: excAud,
       eventSettingIds: eventIds,
@@ -911,6 +1150,12 @@ export function CampaignWizard({
           placeholder="Region ausschliessen …"
           emptyLabel="keine Ausschlüsse"
         />
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <div style={{ fontSize: 12.5, color: S.mut, marginBottom: 4 }}>
+          Plattformen (leer = alle):
+        </div>
+        <PlatformPicker S={S} value={platforms} onChange={setPlatforms} />
       </div>
       {usableAud.length > 0 && (
         <div style={{ marginTop: 10, fontSize: 12.5 }}>
@@ -1636,6 +1881,11 @@ export function BreakdownCard({
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [mock, setMock] = useState(false);
+  const [attr, setAttr] = useState<{
+    clickDays: number;
+    viewDays: number;
+    explicit?: boolean;
+  } | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
     setErr("");
@@ -1655,6 +1905,7 @@ export function BreakdownCard({
     }
     setRows(j.rows || []);
     setMock(!!j.mock);
+    setAttr(j.attribution || null);
   }, [clientId, segment, campaignId, start, end]);
   useEffect(() => {
     load();
@@ -1704,6 +1955,11 @@ export function BreakdownCard({
         <span style={{ fontSize: 11.5, color: S.mut }}>
           {start} – {end}
           {mock ? " · Demo-Verteilung" : ""}
+          {!attr
+            ? ""
+            : attr.explicit === false
+              ? " · Conversions: Standardfenster der API"
+              : ` · Conversions: ${attr.clickDays} Tage Klick, ${attr.viewDays} ${attr.viewDays === 1 ? "Tag" : "Tage"} View`}
         </span>
       </div>
       {err && <div style={{ color: "#b91c1c", fontSize: 12.5 }}>{err}</div>}
@@ -2067,6 +2323,7 @@ export function TargetingEditor({
   S,
   initial,
   initialExcluded,
+  initialPlatforms,
   busy,
   onSave,
   onCancel,
@@ -2075,12 +2332,22 @@ export function TargetingEditor({
   S: Tokens;
   initial: GeoLocation[];
   initialExcluded: GeoLocation[];
+  initialPlatforms?: string[];
   busy: boolean;
-  onSave: (locations: GeoLocation[], excludedLocations: GeoLocation[]) => void;
+  /** platforms nur, wenn die Auswahl geändert wurde (undefined = nicht anfassen;
+   *  [] = Einschränkung aufheben) — ein reines Geo-Speichern lässt sie stehen. */
+  onSave: (
+    locations: GeoLocation[],
+    excludedLocations: GeoLocation[],
+    platforms?: string[],
+  ) => void;
   onCancel: () => void;
 }) {
   const [locs, setLocs] = useState<GeoLocation[]>(initial);
   const [excl, setExcl] = useState<GeoLocation[]>(initialExcluded);
+  const [plats, setPlats] = useState<string[]>(initialPlatforms || []);
+  const platsChanged =
+    [...plats].sort().join(",") !== [...(initialPlatforms || [])].sort().join(",");
   const btn = (primary: boolean): React.CSSProperties => ({
     border: primary ? "none" : `1px solid ${S.line}`,
     borderRadius: 8,
@@ -2126,8 +2393,21 @@ export function TargetingEditor({
           emptyLabel="keine Ausschlüsse"
         />
       </div>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6, color: inkOf(S) }}>
+          Plattformen{" "}
+          <span style={{ fontWeight: 400, color: S.mut }}>
+            — leer = alle; «Web gesamt» oder einzelne Browser
+          </span>
+        </div>
+        <PlatformPicker S={S} value={plats} onChange={setPlats} />
+      </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => onSave(locs, excl)} disabled={busy} style={btn(true)}>
+        <button
+          onClick={() => onSave(locs, excl, platsChanged ? plats : undefined)}
+          disabled={busy}
+          style={btn(true)}
+        >
           {busy ? "Speichere…" : "Targeting speichern"}
         </button>
         <button onClick={onCancel} style={btn(false)}>
