@@ -75,6 +75,8 @@ type Data = {
     status: string;
     matched_user_count_range?: string | null;
   }>;
+  /** Attributionsfenster, mit dem der Sync die Conversions abruft (23.11.). */
+  attribution?: { clickDays: number; viewDays: number } | null;
 };
 type Agg = { imp: number; clk: number; conv: number; ctc: number; spend: number };
 const ZERO: Agg = { imp: 0, clk: 0, conv: 0, ctc: 0, spend: 0 };
@@ -957,6 +959,7 @@ export default function EzyAiAdsManager({
             insights: j.insights || [],
             commands: j.commands || [],
             audiences: j.audiences || [],
+            attribution: j.attribution || null,
           });
       } catch (e: any) {
         if (alive) {
@@ -2503,6 +2506,9 @@ export default function EzyAiAdsManager({
         <span style={{ marginLeft: "auto" }}>
           Vorläufige Daten für {fmtLong(today)} ⓘ · Sync{" "}
           {data.account.last_synced_at ? fmtTime(data.account.last_synced_at) : "—"}
+          {data.attribution
+            ? ` · Conversions: ${data.attribution.clickDays} Tage Klick, ${data.attribution.viewDays} Tag View`
+            : ""}
         </span>
         <span>{rows.length ? `1–${rows.length} von ${rows.length}` : "0 von 0"}</span>
       </div>
