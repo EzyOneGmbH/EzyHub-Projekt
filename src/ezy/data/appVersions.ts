@@ -288,8 +288,13 @@ export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   },
   // EzyAI (KI-Sichtbarkeit)
   geo: {
-    version: "1.40.1",
+    version: "1.40.2",
     changelog: [
+      {
+        version: "1.40.2",
+        date: "2026-11-23",
+        note: "ChatGPT Ads: Der automatische Sync schreibt die Daten jetzt gebündelt statt Zeile für Zeile. Vorher reichte das Kontingent eines Laufs nicht für alle Konten, und die letzten der Liste blieben tagelang ohne neue Zahlen. Reicht es einmal nicht, kommen die offenen Konten beim nächsten Lauf zuerst dran",
+      },
       {
         version: "1.40.1",
         date: "2026-11-23",

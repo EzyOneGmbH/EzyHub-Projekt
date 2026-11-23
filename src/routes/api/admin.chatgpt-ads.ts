@@ -64,7 +64,8 @@ import { zeitraum, zeitraumAusParams } from "@/lib/date-range";
 //                               -> { rows, hasMore, lastId } (OpenAI-Protokoll, live)
 //      audience-create (owner/admin): { clientId, name, description?, identifierType, hashes: string[] }
 //      audience-sync / audience-archive (owner/admin): { clientId, audienceId? }
-//      sync-all (nur Admin-Secret): alle aktiven Konten sequenziell.
+//      sync-all (nur Admin-Secret): alle aktiven Konten sequenziell, ältester
+//      Stand zuerst; Abbruch bei erschöpftem Kontingent/Zeitbudget (23.11.).
 //
 // AUSBAU 13.09.2026 (Spec v2.3.0, 78 Endpunkte — Diff gegen unsere 15 Pfade):
 // - Conversions-Setup per API: /conversions/pixels, /conversions/event_settings,
@@ -412,30 +413,32 @@ function locationsFromApi(c: any, prev: GeoLocation[] | null): GeoLocation[] {
 }
 
 // Kampagne aus API-Objekt in die DB schreiben (Sync + Re-Sync nach Commands).
+function campaignRowFromApi(accountId: string, c: any, prevLocations: GeoLocation[] | null) {
+  return {
+    account_id: accountId,
+    openai_campaign_id: String(c.id),
+    name: String(c.name || ""),
+    status: String(c.status || ""),
+    bidding_type: c.bidding_type ?? null,
+    objective: c.objective ?? null,
+    budget_daily_micros: micros(c.budget?.daily_spend_limit_micros),
+    budget_lifetime_micros: micros(c.budget?.lifetime_spend_limit_micros),
+    start_time: tsToIso(c.start_time),
+    end_time: tsToIso(c.end_time),
+    targeting_locations: locationsFromApi(c, prevLocations),
+    raw: c,
+    synced_at: new Date().toISOString(),
+  };
+}
 async function upsertCampaignFromApi(
   sb: any,
   accountId: string,
   c: any,
   prevLocations: GeoLocation[] | null,
 ) {
-  await sb.from("chatgpt_ads_campaigns").upsert(
-    {
-      account_id: accountId,
-      openai_campaign_id: String(c.id),
-      name: String(c.name || ""),
-      status: String(c.status || ""),
-      bidding_type: c.bidding_type ?? null,
-      objective: c.objective ?? null,
-      budget_daily_micros: micros(c.budget?.daily_spend_limit_micros),
-      budget_lifetime_micros: micros(c.budget?.lifetime_spend_limit_micros),
-      start_time: tsToIso(c.start_time),
-      end_time: tsToIso(c.end_time),
-      targeting_locations: locationsFromApi(c, prevLocations),
-      raw: c,
-      synced_at: new Date().toISOString(),
-    },
-    { onConflict: "account_id,openai_campaign_id" },
-  );
+  await sb.from("chatgpt_ads_campaigns").upsert(campaignRowFromApi(accountId, c, prevLocations), {
+    onConflict: "account_id,openai_campaign_id",
+  });
 }
 
 // Custom Audiences des Kontos einsammeln (Status-Refresh). Nicht-fatal: das
@@ -451,25 +454,101 @@ export function istFrischSynchronisiert(
   return Number.isFinite(t) && jetztMs - t < stunden * 3_600_000;
 }
 
+// ── Gebündeltes Schreiben (23.11.) ──────────────────────────────────────────
+// Jeder DB-Aufruf ist ein Subrequest des Workers. Der Sync schrieb früher jede
+// Zeile einzeln; sync-all sprengte damit das Kontingent («Too many
+// subrequests»), und die letzten Konten des Laufs blieben ohne Aktualisierung.
+/** Zeilen in Blöcke teilen (Batch-Upserts: ein DB-Aufruf je Block statt je Zeile). */
+export function inBloecke<T>(rows: T[], groesse = 500): T[][] {
+  const out: T[][] = [];
+  const n = Math.max(1, Math.floor(groesse) || 1);
+  for (let i = 0; i < rows.length; i += n) out.push(rows.slice(i, i + n));
+  return out;
+}
+/** Je Schlüssel nur die letzte Zeile behalten — ein Batch-Upsert darf denselben
+ *  Konfliktschlüssel nicht zweimal enthalten. */
+export function letzteJeSchluessel<T>(rows: T[], key: (r: T) => string): T[] {
+  const m = new Map<string, T>();
+  for (const r of rows) m.set(key(r), r);
+  return [...m.values()];
+}
+/** Cloudflare-Limit «Too many subrequests» (fetch-Kontingent des Worker-Aufrufs erschöpft)? */
+export function istSubrequestLimit(e: unknown): boolean {
+  return /too many subrequests/i.test(String((e as any)?.message ?? e ?? ""));
+}
+/** sync-all: am längsten nicht synchronisierte Konten zuerst (nie synchronisiert ganz vorn). */
+export function nachSyncAlterSortiert<T extends { last_synced_at?: string | null }>(
+  accounts: T[],
+): T[] {
+  const zeit = (a: T): number => {
+    const v = a.last_synced_at ? Date.parse(a.last_synced_at) : NaN;
+    return Number.isFinite(v) ? v : -Infinity;
+  };
+  return [...accounts].sort((a, b) => {
+    const x = zeit(a);
+    const y = zeit(b);
+    return x === y ? 0 : x < y ? -1 : 1;
+  });
+}
+/** supabase-js wirft bei Fehlern nicht — hier ausdrücklich prüfen. */
+function pruefeDb(table: string, error: any): void {
+  if (error) throw new Error(`${table}: ${String(error?.message || error).slice(0, 200)}`);
+}
+/** Batch-Upsert in Blöcken; wirft bei einem DB-Fehler. Alle Zeilen brauchen
+ *  dieselben Schlüssel und dürfen keinen Konfliktschlüssel doppelt enthalten. */
+async function upsertBloecke(
+  sb: any,
+  table: string,
+  rows: any[],
+  onConflict: string,
+  opts: { ignoreDuplicates?: boolean; groesse?: number } = {},
+): Promise<void> {
+  const { groesse, ...upsertOpts } = opts;
+  for (const block of inBloecke(rows, groesse ?? 500)) {
+    const { error } = await sb.from(table).upsert(block, { onConflict, ...upsertOpts });
+    pruefeDb(table, error);
+  }
+}
+// Zeilen mit raw-JSON (Kampagnen, Gruppen, Anzeigen) in kleineren Blöcken.
+const ENTITY_BLOCK = { groesse: 200 };
+const INSIGHTS_KONFLIKT = "account_id,scope,scope_openai_id,date";
+/** Ganzzahl für bigint-/integer-Spalten — ein einzelner Kommawert liesse sonst
+ *  den ganzen Block scheitern. */
+const ganzzahl = (v: any): number => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? n : 0;
+};
+
 async function syncAudiences(sb: any, acc: any, apiKey: string): Promise<number> {
   const list = await adsListAll(apiKey, acc.openai_ad_account_id, "/custom_audiences").catch(
-    () => [] as any[],
+    (e) => {
+      // Ein erschöpftes Kontingent ist kein «Feature fehlt» — der Lauf muss abbrechen.
+      if (istSubrequestLimit(e)) throw e;
+      return [] as any[];
+    },
   );
-  for (const a of list) {
-    await sb.from("chatgpt_ads_audiences").upsert(
-      {
-        account_id: acc.id,
-        openai_audience_id: String(a.id),
-        name: String(a.name || ""),
-        description: a.description ?? null,
-        status: String(a.status || "processing"),
-        matched_user_count_range: a.matched_user_count_range ?? null,
-        membership_revision: a.membership_revision ?? null,
-        raw: a,
-        synced_at: new Date().toISOString(),
-      },
-      { onConflict: "account_id,openai_audience_id" },
-    );
+  if (!list.length) return 0;
+  const now = new Date().toISOString();
+  const rows = letzteJeSchluessel(
+    list.map((a: any) => ({
+      account_id: acc.id,
+      openai_audience_id: String(a.id),
+      name: String(a.name || ""),
+      description: a.description ?? null,
+      status: String(a.status || "processing"),
+      matched_user_count_range: a.matched_user_count_range ?? null,
+      membership_revision: a.membership_revision ?? null,
+      raw: a,
+      synced_at: now,
+    })),
+    (r) => r.openai_audience_id,
+  );
+  for (const block of inBloecke(rows, ENTITY_BLOCK.groesse)) {
+    const { error } = await sb
+      .from("chatgpt_ads_audiences")
+      .upsert(block, { onConflict: "account_id,openai_audience_id" });
+    // Wie bisher nicht-fatal — ausser das Kontingent ist erschöpft.
+    if (error && istSubrequestLimit(error)) pruefeDb("chatgpt_ads_audiences", error);
   }
   return list.length;
 }
@@ -493,66 +572,85 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
   const prevLoc = new Map<string, GeoLocation[] | null>(
     (prevRows || []).map((r: any) => [String(r.openai_campaign_id), r.targeting_locations]),
   );
-  for (const c of campaigns) {
-    await upsertCampaignFromApi(sb, acc.id, c, prevLoc.get(String(c.id)) ?? null);
-  }
+  // Alle Schreibzugriffe gebündelt (23.11.): ein DB-Aufruf je Block statt je Zeile.
+  await upsertBloecke(
+    sb,
+    "chatgpt_ads_campaigns",
+    letzteJeSchluessel(
+      campaigns.map((c: any) => campaignRowFromApi(acc.id, c, prevLoc.get(String(c.id)) ?? null)),
+      (r) => r.openai_campaign_id,
+    ),
+    "account_id,openai_campaign_id",
+    ENTITY_BLOCK,
+  );
   const audiences = await syncAudiences(sb, acc, apiKey);
   // Ad Groups + Ads je Kampagne (Filter-Params gem. OpenAPI-Spec).
   const { data: dbCamps } = await sb
     .from("chatgpt_ads_campaigns")
     .select("id, openai_campaign_id")
     .eq("account_id", acc.id);
-  let adGroups = 0;
-  let ads = 0;
+  const now = new Date().toISOString();
   // IDs je Ebene — die Conversions-Insights verlangen entity_ids (15.09.).
   const campaignIds = campaigns.map((c: any) => String(c.id));
-  const groupIds: string[] = [];
-  const adIds: string[] = [];
+  // Erst die Gruppen aller Kampagnen einsammeln (ein API-Call je Kampagne) und
+  // in einem Zug schreiben — die DB-IDs kommen mit der Antwort zurück.
+  const groupRows: any[] = [];
   for (const dc of dbCamps || []) {
     const groups = await adsListAll(apiKey, acc.openai_ad_account_id, "/ad_groups", {
       campaign_id: dc.openai_campaign_id,
     });
-    for (const g of groups) {
-      adGroups++;
-      groupIds.push(String(g.id));
-      const { data: gRow } = await sb
-        .from("chatgpt_ads_ad_groups")
-        .upsert(
-          {
-            account_id: acc.id,
-            campaign_id: dc.id,
-            openai_ad_group_id: String(g.id),
-            name: String(g.name || ""),
-            status: String(g.status || ""),
-            raw: g,
-            synced_at: new Date().toISOString(),
-          },
-          { onConflict: "account_id,openai_ad_group_id" },
-        )
-        .select("id")
-        .single();
-      const adList = await adsListAll(apiKey, acc.openai_ad_account_id, "/ads", {
-        ad_group_id: String(g.id),
+    for (const g of groups)
+      groupRows.push({
+        account_id: acc.id,
+        campaign_id: dc.id,
+        openai_ad_group_id: String(g.id),
+        name: String(g.name || ""),
+        status: String(g.status || ""),
+        raw: g,
+        synced_at: now,
       });
-      for (const a of adList) {
-        ads++;
-        adIds.push(String(a.id));
-        await sb.from("chatgpt_ads_ads").upsert(
-          {
-            account_id: acc.id,
-            ad_group_id: gRow?.id ?? null,
-            openai_ad_id: String(a.id),
-            name: a.name ?? null,
-            status: String(a.status || ""),
-            review_status: a.review_status ?? null,
-            raw: a,
-            synced_at: new Date().toISOString(),
-          },
-          { onConflict: "account_id,openai_ad_id" },
-        );
-      }
-    }
   }
+  const adGroups = groupRows.length;
+  const groupIds: string[] = groupRows.map((g) => g.openai_ad_group_id);
+  const groupDbId = new Map<string, string>();
+  for (const block of inBloecke(
+    letzteJeSchluessel(groupRows, (r) => r.openai_ad_group_id),
+    ENTITY_BLOCK.groesse,
+  )) {
+    const { data: gRows, error: gErr } = await sb
+      .from("chatgpt_ads_ad_groups")
+      .upsert(block, { onConflict: "account_id,openai_ad_group_id" })
+      .select("id, openai_ad_group_id");
+    pruefeDb("chatgpt_ads_ad_groups", gErr);
+    for (const r of gRows || []) groupDbId.set(String(r.openai_ad_group_id), String(r.id));
+  }
+  // Dann die Anzeigen je Gruppe (ein API-Call je Gruppe), ebenfalls in einem Zug.
+  const adRows: any[] = [];
+  for (const g of groupRows) {
+    const adList = await adsListAll(apiKey, acc.openai_ad_account_id, "/ads", {
+      ad_group_id: g.openai_ad_group_id,
+    });
+    for (const a of adList)
+      adRows.push({
+        account_id: acc.id,
+        ad_group_id: groupDbId.get(g.openai_ad_group_id) ?? null,
+        openai_ad_id: String(a.id),
+        name: a.name ?? null,
+        status: String(a.status || ""),
+        review_status: a.review_status ?? null,
+        raw: a,
+        synced_at: now,
+      });
+  }
+  const ads = adRows.length;
+  const adIds: string[] = adRows.map((a) => a.openai_ad_id);
+  await upsertBloecke(
+    sb,
+    "chatgpt_ads_ads",
+    letzteJeSchluessel(adRows, (r) => r.openai_ad_id),
+    "account_id,openai_ad_id",
+    ENTITY_BLOCK,
+  );
   // Insights (WF-2): letzte 14 Tage taeglich auf Kampagnen-Ebene — deckt den
   // Attribution-Nachlauf grosszuegig ab; unique-Constraint macht es idempotent.
   // BUGFIX 13.09. (Ezy One zeigte 0 Spend): time_ranges[] ist ein JSON-Objekt
@@ -627,6 +725,8 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
       insightsError = `Insights (${L.level}) HTTP ${ins.status}: ${JSON.stringify(ins.json)?.slice(0, 200)}`;
       continue;
     }
+    // Zeilen der Ebene erst sammeln, dann gebündelt schreiben (siehe unten).
+    const rows: any[] = [];
     for (const row of ins.json?.data || []) {
       const day = row.readable_time?.slice(0, 10) || tsToIso(row.start_time)?.slice(0, 10);
       // id kodiert Zeitfenster+Entity ("start=…:end=…:entity_id=cmpn_…") —
@@ -634,85 +734,106 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
       const entId = row[L.idKey] || String(row.id || "").match(/entity_id=([^:]+)/)?.[1] || null;
       if (!day || !entId) continue;
       insightRows++;
-      await sb.from("chatgpt_ads_insights_daily").upsert(
-        {
-          account_id: acc.id,
-          scope: L.scope,
-          scope_openai_id: String(entId),
-          date: day,
-          impressions: Number(row[`${L.level}_impressions`] ?? row.impressions ?? 0),
-          clicks: Number(row[`${L.level}_clicks`] ?? row.clicks ?? 0),
-          spend: Number(row[`${L.level}_spend`] ?? row.spend ?? 0),
-          conversions: row.conversions != null ? Number(row.conversions) : null,
-          // Neue Attributions-Metriken (Spec v2.3.0); attributed_sales_amount
-          // nur als Fallback (deprecated).
-          attributed_sales: numOrNull(
-            row.order_created_attributed_sales ?? row.attributed_sales_amount,
-          ),
-          roas: numOrNull(row.order_created_roas ?? row.roas),
-          cpa: numOrNull(row.cpa),
-          post_click_cvr: numOrNull(row.post_click_cvr),
-        },
-        { onConflict: "account_id,scope,scope_openai_id,date" },
-      );
+      rows.push({
+        account_id: acc.id,
+        scope: L.scope,
+        scope_openai_id: String(entId),
+        date: day,
+        impressions: ganzzahl(row[`${L.level}_impressions`] ?? row.impressions ?? 0),
+        clicks: ganzzahl(row[`${L.level}_clicks`] ?? row.clicks ?? 0),
+        spend: Number(row[`${L.level}_spend`] ?? row.spend ?? 0),
+        conversions: row.conversions != null ? ganzzahl(row.conversions) : null,
+        // Neue Attributions-Metriken (Spec v2.3.0); attributed_sales_amount
+        // nur als Fallback (deprecated).
+        attributed_sales: numOrNull(
+          row.order_created_attributed_sales ?? row.attributed_sales_amount,
+        ),
+        roas: numOrNull(row.order_created_roas ?? row.roas),
+        cpa: numOrNull(row.cpa),
+        post_click_cvr: numOrNull(row.post_click_cvr),
+      });
     }
     // CTC (30 T.) = Click-through-Conversions je Tag/Entity — nicht-fatal
-    // (Endpoint kann für ein Konto fehlen).
+    // (Endpoint kann für ein Konto fehlen). Die Werte werden mit den Zeilen
+    // dieser Ebene zusammen geschrieben statt je Zeile nachgetragen.
+    const ctcJeZeile = new Map<string, number>();
     const entIds = L.level === "campaign" ? campaignIds : L.level === "ad_group" ? groupIds : adIds;
-    if (!entIds.length) continue;
-    const ctcBody = {
-      aggregation_level: L.level,
-      time_granularity: "daily",
-      // time_ranges ist auch hier ein Array von JSON-STRINGS (die API lehnt
-      // Objekte ab: «expected a string, but got an object»), Typ unix_range —
-      // und die Zeitstempel muessen auf volle Stunden fallen (Minute/Sekunde 0).
-      time_ranges: [
-        JSON.stringify({
-          type: "unix_range",
-          start: String(localMidnightUnix(since.toISOString().slice(0, 10), tz)),
-          end: String(
-            localMidnightUnix(new Date(Date.now() + 864e5).toISOString().slice(0, 10), tz),
-          ),
-        }),
-      ],
-      entity_ids: entIds.slice(0, 500),
-      group_by_entity: true,
-    };
-    // Gleiches Fenster wie die GET-Insights (23.11.); bei 400 ohne Angabe.
-    let cv = await adsFetch(apiKey, acc.openai_ad_account_id, "/conversions/insights", {
-      method: "POST",
-      body: { ...ctcBody, ...ATTRIBUTION_BODY },
-    });
-    if (!cv.ok && cv.status === 400) {
-      attributionExplicit = false;
-      cv = await adsFetch(apiKey, acc.openai_ad_account_id, "/conversions/insights", {
-        method: "POST",
-        body: ctcBody,
-      });
-    }
-    if (!cv.ok)
-      ctcDebug.push({
-        level: L.level,
-        status: cv.status,
-        rows: Array.isArray(cv.json?.data) ? cv.json.data.length : null,
-        keys: cv.json?.data?.[0] ? Object.keys(cv.json.data[0]).join(",") : null,
-        body: JSON.stringify(cv.json)?.slice(0, 200),
-      });
-    if (cv.ok)
-      for (const row of cv.json?.data || []) {
-        const day = String(row.date || "").slice(0, 10);
-        const entId = row.entity_id ? String(row.entity_id) : null;
-        if (!day || !entId) continue;
-        await sb
-          .from("chatgpt_ads_insights_daily")
-          .update({ ctc: Number(row.click_through_conversions ?? row.conversions ?? 0) })
-          .eq("account_id", acc.id)
-          .eq("scope", L.scope)
-          .eq("scope_openai_id", entId)
-          .eq("date", day);
+    if (entIds.length) {
+      const ctcBody = {
+        aggregation_level: L.level,
+        time_granularity: "daily",
+        // time_ranges ist auch hier ein Array von JSON-STRINGS (die API lehnt
+        // Objekte ab: «expected a string, but got an object»), Typ unix_range —
+        // und die Zeitstempel muessen auf volle Stunden fallen (Minute/Sekunde 0).
+        time_ranges: [
+          JSON.stringify({
+            type: "unix_range",
+            start: String(localMidnightUnix(since.toISOString().slice(0, 10), tz)),
+            end: String(
+              localMidnightUnix(new Date(Date.now() + 864e5).toISOString().slice(0, 10), tz),
+            ),
+          }),
+        ],
+        entity_ids: entIds.slice(0, 500),
+        group_by_entity: true,
+      };
+      try {
+        // Gleiches Fenster wie die GET-Insights (23.11.); bei 400 ohne Angabe.
+        let cv = await adsFetch(apiKey, acc.openai_ad_account_id, "/conversions/insights", {
+          method: "POST",
+          body: { ...ctcBody, ...ATTRIBUTION_BODY },
+        });
+        if (!cv.ok && cv.status === 400) {
+          attributionExplicit = false;
+          cv = await adsFetch(apiKey, acc.openai_ad_account_id, "/conversions/insights", {
+            method: "POST",
+            body: ctcBody,
+          });
+        }
+        if (!cv.ok)
+          ctcDebug.push({
+            level: L.level,
+            status: cv.status,
+            rows: Array.isArray(cv.json?.data) ? cv.json.data.length : null,
+            keys: cv.json?.data?.[0] ? Object.keys(cv.json.data[0]).join(",") : null,
+            body: JSON.stringify(cv.json)?.slice(0, 200),
+          });
+        if (cv.ok)
+          for (const row of cv.json?.data || []) {
+            const day = String(row.date || "").slice(0, 10);
+            const entId = row.entity_id ? String(row.entity_id) : null;
+            if (!day || !entId) continue;
+            const n = Math.round(Number(row.click_through_conversions ?? row.conversions ?? 0));
+            if (Number.isFinite(n)) ctcJeZeile.set(`${entId}|${day}`, n);
+          }
+      } catch (e: any) {
+        // Erschöpftes Kontingent: abbrechen. Sonst (Timeout, Netz) ohne CTC weiter —
+        // die Zeilen dieser Ebene werden trotzdem geschrieben.
+        if (istSubrequestLimit(e)) throw e;
+        ctcDebug.push({
+          level: L.level,
+          status: 0,
+          rows: null,
+          keys: null,
+          body: String(e?.message || e).slice(0, 200),
+        });
       }
+    }
+    // Zwei Blöcke, weil ein Batch überall dieselben Spalten braucht: Zeilen ohne
+    // CTC-Wert nennen die Spalte nicht (der bestehende Wert bleibt stehen).
+    const ohneCtc: any[] = [];
+    const mitCtc: any[] = [];
+    for (const r of letzteJeSchluessel(rows, (z) => `${z.scope_openai_id}|${z.date}`)) {
+      const ctc = ctcJeZeile.get(`${r.scope_openai_id}|${r.date}`);
+      if (ctc == null) ohneCtc.push(r);
+      else mitCtc.push({ ...r, ctc });
+    }
+    await upsertBloecke(sb, "chatgpt_ads_insights_daily", ohneCtc, INSIGHTS_KONFLIKT);
+    await upsertBloecke(sb, "chatgpt_ads_insights_daily", mitCtc, INSIGHTS_KONFLIKT);
   }
-  await sb
+  // Fehler hier ausdrücklich prüfen: sonst gälte ein Konto als synchronisiert,
+  // obwohl der Zeitstempel nicht geschrieben wurde.
+  const { error: accErr } = await sb
     .from("chatgpt_ads_accounts")
     .update({
       last_synced_at: new Date().toISOString(),
@@ -720,6 +841,7 @@ async function syncAccount(sb: any, acc: any): Promise<any> {
       ...(meta ? { meta } : {}),
     })
     .eq("id", acc.id);
+  pruefeDb("chatgpt_ads_accounts", accErr);
   return {
     campaigns: campaigns.length,
     adGroups,
@@ -763,28 +885,31 @@ async function mockSync(sb: any, acc: any): Promise<any> {
     { id: "cmp_mock_leads", name: "Lead-Gen Beratung", bidding: "conversions", daily: 80_000_000 },
     { id: "cmp_mock_promo", name: "Herbst-Promo", bidding: "cpc", daily: 30_000_000 },
   ];
-  for (const [i, c] of CAMPS.entries()) {
-    await sb.from("chatgpt_ads_campaigns").upsert(
-      {
-        account_id: acc.id,
-        openai_campaign_id: c.id,
-        name: c.name,
-        status: i === 2 ? "paused" : "active",
-        bidding_type: c.bidding,
-        objective: "traffic",
-        budget_daily_micros: c.daily,
-        // Demo: Brand-Kampagne auf die Schweiz ausgerichtet, Rest weltweit.
-        targeting_locations: i === 0 ? [MOCK_GEO[0]] : [],
-        raw: {
-          id: c.id,
-          mock: true,
-          targeting: i === 0 ? { locations: { include: [{ id: MOCK_GEO[0].id }] } } : {},
-        },
-        synced_at: new Date().toISOString(),
+  const now = new Date().toISOString();
+  // Gebündelt geschrieben (23.11.) wie der echte Sync: ein DB-Aufruf je Block.
+  await upsertBloecke(
+    sb,
+    "chatgpt_ads_campaigns",
+    CAMPS.map((c, i) => ({
+      account_id: acc.id,
+      openai_campaign_id: c.id,
+      name: c.name,
+      status: i === 2 ? "paused" : "active",
+      bidding_type: c.bidding,
+      objective: "traffic",
+      budget_daily_micros: c.daily,
+      // Demo: Brand-Kampagne auf die Schweiz ausgerichtet, Rest weltweit.
+      targeting_locations: i === 0 ? [MOCK_GEO[0]] : [],
+      raw: {
+        id: c.id,
+        mock: true,
+        targeting: i === 0 ? { locations: { include: [{ id: MOCK_GEO[0].id }] } } : {},
       },
-      { onConflict: "account_id,openai_campaign_id", ignoreDuplicates: true },
-    );
-  }
+      synced_at: now,
+    })),
+    "account_id,openai_campaign_id",
+    { ignoreDuplicates: true },
+  );
   // Demo-Anzeigengruppen + Anzeigen (für Drilldown + Vorschau, 13.09.).
   const { data: dbCamps } = await sb
     .from("chatgpt_ads_campaigns")
@@ -825,56 +950,53 @@ async function mockSync(sb: any, acc: any): Promise<any> {
       },
     ],
   };
-  let adGroups = 0;
-  let ads = 0;
-  for (const c of CAMPS) {
-    const cid = campDbId.get(c.id);
-    if (!cid) continue;
-    adGroups++;
-    const { data: gRow } = await sb
+  const mitKampagne = CAMPS.filter((c) => campDbId.has(c.id));
+  const groupRows = mitKampagne.map((c) => ({
+    account_id: acc.id,
+    campaign_id: campDbId.get(c.id),
+    openai_ad_group_id: `adg_${c.id}`,
+    name: `${c.name} – Gruppe A`,
+    status: "active",
+    raw: { id: `adg_${c.id}`, mock: true },
+    synced_at: now,
+  }));
+  const adGroups = groupRows.length;
+  const groupDbId = new Map<string, string>();
+  if (groupRows.length) {
+    const { data: gRows, error: gErr } = await sb
       .from("chatgpt_ads_ad_groups")
-      .upsert(
-        {
-          account_id: acc.id,
-          campaign_id: cid,
-          openai_ad_group_id: `adg_${c.id}`,
-          name: `${c.name} – Gruppe A`,
-          status: "active",
-          raw: { id: `adg_${c.id}`, mock: true },
-          synced_at: new Date().toISOString(),
-        },
-        { onConflict: "account_id,openai_ad_group_id" },
-      )
-      .select("id")
-      .single();
-    for (const [j, a] of (ADS[c.id] || []).entries()) {
-      ads++;
-      await sb.from("chatgpt_ads_ads").upsert(
-        {
-          account_id: acc.id,
-          ad_group_id: gRow?.id ?? null,
-          openai_ad_id: a.id,
-          name: a.name,
-          status: j === 1 ? "paused" : "active",
-          review_status: j === 1 ? "in_review" : "approved",
-          raw: {
-            id: a.id,
-            mock: true,
-            creative: {
-              type: "chat_card",
-              title: a.title,
-              body: a.body,
-              target_url: "https://www.ezyone.ch/",
-            },
-          },
-          synced_at: new Date().toISOString(),
-        },
-        { onConflict: "account_id,openai_ad_id" },
-      );
-    }
+      .upsert(groupRows, { onConflict: "account_id,openai_ad_group_id" })
+      .select("id, openai_ad_group_id");
+    pruefeDb("chatgpt_ads_ad_groups", gErr);
+    for (const r of gRows || []) groupDbId.set(String(r.openai_ad_group_id), String(r.id));
   }
+  const adRows: any[] = [];
+  for (const c of mitKampagne) {
+    for (const [j, a] of (ADS[c.id] || []).entries())
+      adRows.push({
+        account_id: acc.id,
+        ad_group_id: groupDbId.get(`adg_${c.id}`) ?? null,
+        openai_ad_id: a.id,
+        name: a.name,
+        status: j === 1 ? "paused" : "active",
+        review_status: j === 1 ? "in_review" : "approved",
+        raw: {
+          id: a.id,
+          mock: true,
+          creative: {
+            type: "chat_card",
+            title: a.title,
+            body: a.body,
+            target_url: "https://www.ezyone.ch/",
+          },
+        },
+        synced_at: now,
+      });
+  }
+  const ads = adRows.length;
+  await upsertBloecke(sb, "chatgpt_ads_ads", adRows, "account_id,openai_ad_id");
   // 30 Tage deterministische Insights je Kampagne (Seed = Tagesindex).
-  let insightRows = 0;
+  const campaignInsights: any[] = [];
   for (let d = 0; d < 30; d++) {
     const day = new Date(Date.now() - d * 864e5).toISOString().slice(0, 10);
     for (const [i, c] of CAMPS.entries()) {
@@ -890,26 +1012,24 @@ async function mockSync(sb: any, acc: any): Promise<any> {
             : null;
       // Promo-Kampagne: Käufe mit Umsatz (ROAS-Demo), Lead-Kampagne: nur Leads.
       const sales = i === 2 && conv ? Math.round(conv * 89.5 * 100) / 100 : null;
-      insightRows++;
-      await sb.from("chatgpt_ads_insights_daily").upsert(
-        {
-          account_id: acc.id,
-          scope: "campaign",
-          scope_openai_id: c.id,
-          date: day,
-          impressions: base * 10,
-          clicks,
-          spend,
-          conversions: conv,
-          attributed_sales: sales,
-          roas: sales != null && spend ? Math.round((sales / spend) * 100) / 100 : null,
-          cpa: conv ? Math.round((spend / conv) * 100) / 100 : null,
-          post_click_cvr: conv && clicks ? Math.round((conv / clicks) * 10000) / 10000 : null,
-        },
-        { onConflict: "account_id,scope,scope_openai_id,date" },
-      );
+      campaignInsights.push({
+        account_id: acc.id,
+        scope: "campaign",
+        scope_openai_id: c.id,
+        date: day,
+        impressions: base * 10,
+        clicks,
+        spend,
+        conversions: conv,
+        attributed_sales: sales,
+        roas: sales != null && spend ? Math.round((sales / spend) * 100) / 100 : null,
+        cpa: conv ? Math.round((spend / conv) * 100) / 100 : null,
+        post_click_cvr: conv && clicks ? Math.round((conv / clicks) * 10000) / 10000 : null,
+      });
     }
   }
+  const insightRows = campaignInsights.length;
+  await upsertBloecke(sb, "chatgpt_ads_insights_daily", campaignInsights, INSIGHTS_KONFLIKT);
   // Ebenen Anzeigengruppe/Anzeige (15.09.): Kampagnenzeilen auf die Anzeigen
   // verteilen (Gewichte deterministisch), Gruppe = Summe.
   const { data: campRows } = await sb
@@ -917,6 +1037,7 @@ async function mockSync(sb: any, acc: any): Promise<any> {
     .select("scope_openai_id, date, impressions, clicks, spend, conversions")
     .eq("account_id", acc.id)
     .eq("scope", "campaign");
+  const ebenenRows: any[] = [];
   for (const cr of campRows || []) {
     const list = ADS[cr.scope_openai_id] || [];
     if (!list.length) continue;
@@ -924,40 +1045,41 @@ async function mockSync(sb: any, acc: any): Promise<any> {
     for (const [j, a] of list.entries()) {
       const w = list.length === 1 ? 1 : weights[j];
       const conv = cr.conversions != null ? Math.round(Number(cr.conversions) * w) : null;
-      await sb.from("chatgpt_ads_insights_daily").upsert(
-        {
-          account_id: acc.id,
-          scope: "ad",
-          scope_openai_id: a.id,
-          date: cr.date,
-          impressions: Math.round(Number(cr.impressions) * w),
-          clicks: Math.round(Number(cr.clicks) * w),
-          spend: Math.round(Number(cr.spend) * w * 100) / 100,
-          conversions: conv,
-          ctc: conv,
-        },
-        { onConflict: "account_id,scope,scope_openai_id,date" },
-      );
-    }
-    await sb.from("chatgpt_ads_insights_daily").upsert(
-      {
+      ebenenRows.push({
         account_id: acc.id,
-        scope: "ad_group",
-        scope_openai_id: `adg_${cr.scope_openai_id}`,
+        scope: "ad",
+        scope_openai_id: a.id,
         date: cr.date,
-        impressions: Number(cr.impressions),
-        clicks: Number(cr.clicks),
-        spend: Number(cr.spend),
-        conversions: cr.conversions,
-        ctc: cr.conversions,
-      },
-      { onConflict: "account_id,scope,scope_openai_id,date" },
-    );
+        impressions: Math.round(Number(cr.impressions) * w),
+        clicks: Math.round(Number(cr.clicks) * w),
+        spend: Math.round(Number(cr.spend) * w * 100) / 100,
+        conversions: conv,
+        ctc: conv,
+      });
+    }
+    ebenenRows.push({
+      account_id: acc.id,
+      scope: "ad_group",
+      scope_openai_id: `adg_${cr.scope_openai_id}`,
+      date: cr.date,
+      impressions: Number(cr.impressions),
+      clicks: Number(cr.clicks),
+      spend: Number(cr.spend),
+      conversions: cr.conversions,
+      ctc: cr.conversions,
+    });
   }
-  await sb
+  await upsertBloecke(
+    sb,
+    "chatgpt_ads_insights_daily",
+    letzteJeSchluessel(ebenenRows, (r) => `${r.scope}|${r.scope_openai_id}|${r.date}`),
+    INSIGHTS_KONFLIKT,
+  );
+  const { error: accErr } = await sb
     .from("chatgpt_ads_accounts")
     .update({ last_synced_at: new Date().toISOString(), last_sync_error: null })
     .eq("id", acc.id);
+  pruefeDb("chatgpt_ads_accounts", accErr);
   return { campaigns: CAMPS.length, adGroups, ads, insightRows, mock: true };
 }
 
@@ -2196,18 +2318,37 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             .from("chatgpt_ads_accounts")
             .select("*")
             .eq("status", "active");
+          // Reihenfolge (23.11.): am längsten nicht synchronisierte Konten zuerst.
+          // Reicht das Kontingent des Worker-Aufrufs oder die Zeit einmal nicht für
+          // alle, kommen die übrigen beim nächsten Lauf als Erste dran — vorher
+          // traf es immer dieselben Konten am Schluss der Liste.
+          const startMs = Date.now();
+          const ZEITBUDGET_MS = 240_000; // pg_cron wartet 295 s auf die Antwort
           const results: any[] = [];
           let uebersprungen = 0;
-          for (const acc of accounts || []) {
+          let abbruch: string | null = null;
+          for (const acc of nachSyncAlterSortiert<any>(accounts || [])) {
             if (istFrischSynchronisiert(acc.last_synced_at, maxAlterStunden)) {
               uebersprungen++;
               results.push({ account: acc.name, skipped: true, lastSyncedAt: acc.last_synced_at });
+              continue;
+            }
+            if (!abbruch && Date.now() - startMs > ZEITBUDGET_MS) abbruch = "Zeitbudget";
+            if (abbruch) {
+              results.push({ account: acc.name, offen: true });
               continue;
             }
             try {
               results.push({ account: acc.name, ...(await syncAccount(sb, acc)) });
             } catch (e: any) {
               const msg = String(e?.message || e).slice(0, 300);
+              if (istSubrequestLimit(e)) {
+                // Kontingent erschöpft: jeder weitere Aufruf (auch an die DB) würde
+                // ebenfalls scheitern — Lauf beenden, der Rest folgt beim nächsten.
+                abbruch = "Subrequest-Limit";
+                results.push({ account: acc.name, error: msg });
+                continue;
+              }
               // 401 = Key entzogen/abgelaufen -> Konto trennen (Spec §4 WF-1).
               const upd: any = { last_sync_error: msg };
               if (/HTTP 401/.test(msg)) upd.status = "disconnected";
@@ -2219,8 +2360,12 @@ export const Route = createFileRoute("/api/admin/chatgpt-ads")({
             ok: true,
             source: String(body?.source || "manuell"),
             maxAlterStunden,
-            synchronisiert: results.filter((r) => !r.skipped).length,
+            // Nur echte Erfolge (vorher zählten auch gescheiterte Konten mit).
+            synchronisiert: results.filter((r) => !r.skipped && !r.error && !r.offen).length,
             uebersprungen,
+            fehler: results.filter((r) => r.error).length,
+            offen: results.filter((r) => r.offen).length,
+            abbruch,
             results,
           });
         }

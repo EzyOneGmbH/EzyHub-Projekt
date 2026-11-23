@@ -71,7 +71,10 @@ const db: Record<string, any[]> = {
 
 // Generischer Proxy-Builder: eq/neq/gte/lte/lt/in werden ausgewertet, alles
 // Uebrige ist chainbar (order/select/limit …); unbekannte Tabellen → [].
+// Zählt DB-Aufrufe (Regressionsschutz gegen zeilenweises Schreiben im Sync).
+const dbCalls = { n: 0 };
 function builder(table: string) {
+  dbCalls.n++;
   const st: any = { filters: [] as ((r: any) => boolean)[], single: false, limit: 0 };
   const cmp = (op: string, a: any, b: any) => {
     if (a == null) return false;
@@ -221,5 +224,96 @@ describe("ChatGPT-Ads Auto-Sync (pg_cron stuendlich, bei Nichtverwendung)", () =
     expect(istFrischSynchronisiert(vor(2), 0, jetzt)).toBe(false); // ohne Fenster nie überspringen
     expect(istFrischSynchronisiert(null, 11, jetzt)).toBe(false); // nie synchronisiert → sync
     expect(istFrischSynchronisiert("kein datum", 11, jetzt)).toBe(false);
+  });
+});
+
+// 23.11.2026: sync-all sprengte das Subrequest-Kontingent des Workers, weil der
+// Sync jede Zeile einzeln schrieb — die letzten Konten blieben tagelang stehen.
+describe("ChatGPT-Ads Sync: gebündeltes Schreiben (Subrequest-Limit)", () => {
+  it("inBloecke: teilt in Blöcke, leere Liste ergibt keinen Block", async () => {
+    const { inBloecke } = await import("../routes/api/admin.chatgpt-ads");
+    expect(inBloecke([], 500)).toEqual([]);
+    expect(inBloecke([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+    expect(inBloecke([1, 2, 3], 500)).toEqual([[1, 2, 3]]);
+    expect(inBloecke([1, 2], 0)).toEqual([[1], [2]]); // nie Endlosschleife
+  });
+
+  it("letzteJeSchluessel: je Konfliktschlüssel bleibt nur die letzte Zeile", async () => {
+    const { letzteJeSchluessel } = await import("../routes/api/admin.chatgpt-ads");
+    const rows = [
+      { id: "a", v: 1 },
+      { id: "b", v: 2 },
+      { id: "a", v: 3 },
+    ];
+    expect(letzteJeSchluessel(rows, (r) => r.id)).toEqual([
+      { id: "a", v: 3 },
+      { id: "b", v: 2 },
+    ]);
+  });
+
+  it("istSubrequestLimit: erkennt den Cloudflare-Fehler, auch verpackt", async () => {
+    const { istSubrequestLimit } = await import("../routes/api/admin.chatgpt-ads");
+    expect(istSubrequestLimit(new Error("Too many subrequests by single Worker invocation."))).toBe(
+      true,
+    );
+    expect(istSubrequestLimit({ message: "chatgpt_ads_ads: Too many subrequests" })).toBe(true);
+    expect(istSubrequestLimit(new Error("/campaigns: HTTP 401"))).toBe(false);
+    expect(istSubrequestLimit(null)).toBe(false);
+  });
+
+  it("nachSyncAlterSortiert: ältester Stand zuerst, nie synchronisiert ganz vorn", async () => {
+    const { nachSyncAlterSortiert } = await import("../routes/api/admin.chatgpt-ads");
+    const konten = [
+      { name: "frisch", last_synced_at: "2026-11-23T15:00:00Z" },
+      { name: "nie", last_synced_at: null },
+      { name: "alt", last_synced_at: "2026-11-15T08:00:00Z" },
+      { name: "mittel", last_synced_at: "2026-11-18T08:00:00Z" },
+    ];
+    expect(nachSyncAlterSortiert(konten).map((k) => k.name)).toEqual([
+      "nie",
+      "alt",
+      "mittel",
+      "frisch",
+    ]);
+    expect(konten[0].name).toBe("frisch"); // Eingabe bleibt unverändert
+  });
+
+  it("sync-all: Demo-Konto braucht nur eine Handvoll DB-Aufrufe, Zähler stimmen", async () => {
+    const vorher = process.env.ADMIN_AUTOMATION_SECRET;
+    process.env.ADMIN_AUTOMATION_SECRET = "nur-fuer-diesen-test";
+    dbCalls.n = 0;
+    try {
+      const res = await chatgpt.POST({
+        request: new Request("http://test/api/x", {
+          method: "POST",
+          headers: {
+            authorization: "Bearer nur-fuer-diesen-test",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ action: "sync-all", source: "test", maxAlterStunden: 0.75 }),
+        }),
+      });
+      const j = await res.json();
+      expect(j.ok).toBe(true);
+      expect(j).toMatchObject({ synchronisiert: 1, uebersprungen: 0, fehler: 0, offen: 0 });
+      expect(j.abbruch).toBeNull();
+      expect(j.results[0]).toMatchObject({ account: "Mock", mock: true, insightRows: 85 });
+      // Zeilenweise wären es über 90 Aufrufe (85 Insight-Zeilen + Kampagnen).
+      expect(dbCalls.n).toBeLessThan(15);
+    } finally {
+      if (vorher === undefined) delete process.env.ADMIN_AUTOMATION_SECRET;
+      else process.env.ADMIN_AUTOMATION_SECRET = vorher;
+    }
+  });
+
+  it("sync-all: ohne Admin-Secret 401", async () => {
+    const res = await chatgpt.POST({
+      request: new Request("http://test/api/x", {
+        method: "POST",
+        headers: { authorization: "Bearer falsch", "content-type": "application/json" },
+        body: JSON.stringify({ action: "sync-all" }),
+      }),
+    });
+    expect(res.status).toBe(401);
   });
 });
