@@ -69,6 +69,8 @@ const EREIGNIS: Record<string, { text: string; gruppe: Gruppe; farbe: string }> 
   "wp.connected": { text: "WordPress verbunden", gruppe: "einstellung", farbe: P.green },
   "wp.test_failed": { text: "WordPress-Test fehlgeschlagen", gruppe: "einstellung", farbe: P.red },
   "project.updated": { text: "Einstellungen geändert", gruppe: "einstellung", farbe: P.dim },
+  "autopilot.paused": { text: "Automatik ausgeschaltet", gruppe: "einstellung", farbe: P.dim },
+  "autopilot.resumed": { text: "Automatik eingeschaltet", gruppe: "einstellung", farbe: P.green },
   "rule.created": { text: "Schreibregel hinzugefügt", gruppe: "einstellung", farbe: P.dim },
   "rule.enabled": { text: "Schreibregel aktiviert", gruppe: "einstellung", farbe: P.dim },
   "rule.disabled": { text: "Schreibregel deaktiviert", gruppe: "einstellung", farbe: P.dim },

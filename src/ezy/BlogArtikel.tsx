@@ -672,7 +672,7 @@ export default function BlogArtikel({ id }: { id: string }) {
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 12px" }}>
           <StatusMarke status={status} agentur={agentur} geprueft={geprueft} />
           <span style={klein}>
-            {MODUS_TEXT[a.modus] ?? a.modus}
+            {a.extern ? "Bestehender Artikel" : (MODUS_TEXT[a.modus] ?? a.modus)}
             {termin ? ` · ${datumText(termin, true)}` : ""}
             {a.word_count ? ` · ${a.word_count} Wörter` : ""}
           </span>
@@ -857,6 +857,19 @@ export default function BlogArtikel({ id }: { id: string }) {
                   onKeyUp={merkeAuswahl}
                   dangerouslySetInnerHTML={{ __html: html }}
                 />
+              ) : a.extern ? (
+                // Aus dem Bestand der Website übernommen: Hub kennt nur Titel und Adresse.
+                <div style={{ ...klein, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <span>
+                    Dieser Artikel wurde ausserhalb von EzyHub veröffentlicht. Der Text liegt nur
+                    auf der Website.
+                  </span>
+                  {liveUrl && (
+                    <a href={liveUrl} target="_blank" rel="noopener noreferrer" style={verweis}>
+                      Auf der Website ansehen
+                    </a>
+                  )}
+                </div>
               ) : (
                 <div style={klein}>
                   {status === "freigegeben" || status === "schreibt"

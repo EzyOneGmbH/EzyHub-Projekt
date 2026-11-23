@@ -1,8 +1,10 @@
 // Blog-Autopilot: Einstieg im Blog-Tab von EzyRank (Kap. 6A «Einstiegspunkte»).
 // Ohne Projekt → «Blog-Autopilot einrichten», im Onboarding → «Einrichtung
-// fortsetzen», aktiv → Kurzstatus mit Link zum Themenplan. Ist der Autopilot
-// für den Kunden nicht freigeschaltet (403), erscheint nichts.
+// fortsetzen», eingerichtet (aktiv oder Automatik aus) → Kurzstatus mit Link
+// zum Themenplan. Ist der Autopilot für den Kunden nicht freigeschaltet (403),
+// erscheint nichts.
 import { useEffect, useState } from "react";
+import { blogEingerichtet } from "@/ezy/data/blogAutopilot";
 import { authedJson } from "@/lib/authed-fetch";
 
 const P = {
@@ -25,7 +27,7 @@ export default function BlogAutopilotKarte({ client }: { client: { id: string } 
       if (!aktiv || !r.ok) return;
       const project = r.json?.project ?? null;
       let themen = 0;
-      if (project?.status === "active") {
+      if (blogEingerichtet(project?.status)) {
         const t = await authedJson<any>(`/api/blog/projects/${project.id}/topics`);
         themen = t.json?.topics?.length ?? 0;
       }
@@ -39,7 +41,11 @@ export default function BlogAutopilotKarte({ client }: { client: { id: string } 
   if (!client?.id || !stand) return null;
   const p = stand.project;
   const link = (step: number) => `/ezyrank/blog/einrichtung/${step}?client=${client.id}`;
-  const aktiv = p?.status === "active";
+  // «aktiv» steuert Aussehen und Ziel der Karte: eingerichtet, auch wenn die
+  // Automatik aus ist. Nur der grüne Punkt und der Montags-Hinweis hängen an
+  // der laufenden Automatik.
+  const aktiv = blogEingerichtet(p?.status);
+  const pausiert = p?.status === "paused";
 
   return (
     <div
@@ -58,7 +64,9 @@ export default function BlogAutopilotKarte({ client }: { client: { id: string } 
     >
       <div>
         <div style={{ fontWeight: 800, fontSize: 15, color: P.text }}>
-          {aktiv ? (
+          {pausiert ? (
+            "Blog · Automatik aus"
+          ) : aktiv ? (
             <>
               <span
                 aria-hidden
@@ -79,7 +87,7 @@ export default function BlogAutopilotKarte({ client }: { client: { id: string } 
         </div>
         <div style={{ fontSize: 13, color: P.muted, marginTop: 2 }}>
           {aktiv
-            ? `${stand.themen} ${stand.themen === 1 ? "Thema" : "Themen"} geplant · jeden Montag neue Chancen`
+            ? `${stand.themen} ${stand.themen === 1 ? "Thema" : "Themen"} geplant${pausiert ? "" : " · jeden Montag neue Chancen"}`
             : p
               ? `Einrichtung bei Schritt ${p.onboarding_step} von 8`
               : "In rund 10 Minuten eingerichtet. Nichts geht ohne dich live."}

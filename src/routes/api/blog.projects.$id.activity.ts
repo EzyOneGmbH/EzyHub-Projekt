@@ -27,6 +27,8 @@ const NUR_AGENTUR = [
   "audit.failed",
   "wp.test_failed",
   "project.updated",
+  "autopilot.paused",
+  "autopilot.resumed",
   "rule.created",
   "rule.enabled",
   "rule.disabled",

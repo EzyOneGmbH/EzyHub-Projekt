@@ -7,7 +7,7 @@ import { istAgentur, requireBlogProject } from "@/server/blog-autopilot.server";
 // Suchvolumen, Schwierigkeit und Artikeltyp kommen vom Thema.
 
 const KOPF =
-  "id, topic_id, status, stage, title, focus_keyword, word_count, scheduled_for, wp_post_id, wp_edit_url, wp_permalink, error, attempts, published_at, modus:job->>modus, pruefung:job->pruefung, review:job->review, bearbeitet:job->bearbeitet, wordpress:job->wordpress, created_at, updated_at, finished_at";
+  "id, topic_id, status, stage, title, focus_keyword, word_count, scheduled_for, wp_post_id, wp_edit_url, wp_permalink, error, attempts, published_at, modus:job->>modus, herkunft:job->>herkunft, pruefung:job->pruefung, review:job->review, bearbeitet:job->bearbeitet, wordpress:job->wordpress, created_at, updated_at, finished_at";
 
 export const Route = createFileRoute("/api/blog/projects/$id/articles")({
   server: {
@@ -22,7 +22,9 @@ export const Route = createFileRoute("/api/blog/projects/$id/articles")({
             .select(KOPF)
             .eq("project_id", r.project.id)
             .order("scheduled_for", { ascending: true, nullsFirst: false })
-            .limit(200),
+            // 1000 statt 200: mit den übernommenen bisherigen Artikeln (job.herkunft
+            // = "extern") schneidet die aufsteigende Sortierung sonst die neuesten ab.
+            .limit(1000),
           sb
             .from("blog_topics")
             .select("*")

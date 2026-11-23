@@ -14,6 +14,7 @@ import {
   type Ctx,
 } from "@/ezy/BlogUi";
 import BlogPlanEingabe from "@/ezy/BlogPlanEingabe";
+import { blogEingerichtet } from "@/ezy/data/blogAutopilot";
 
 const KATEGORIE: Record<string, { label: string; farbe: string; hinter: string }> = {
   fast_vorne: { label: "Fast vorne", farbe: P.green, hinter: P.greenDim },
@@ -457,7 +458,17 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
       })
     : null;
 
+  // Eingerichtet = «active» oder «paused». Bei «paused» (Automatik aus) darf
+  // dieser Schritt die Automatik nicht nebenbei einschalten: «/start» würde das
+  // tun. Ein- und Ausschalten geht nur über den Schalter im Blog-Bereich.
+  const eingerichtet = blogEingerichtet(c.project.status);
+  const pausiert = c.project.status === "paused";
+
   const start = async () => {
+    if (eingerichtet || schreibt !== null) {
+      window.location.href = blogZurueck(c.kunde.id);
+      return;
+    }
     setBusy(true);
     c.setFehler(null);
     const r = await api(`/api/blog/projects/${c.project.id}/start`, "POST");
@@ -469,7 +480,7 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
   const jetztSchreiben = async () => {
     setBusy(true);
     c.setFehler(null);
-    if (c.project.status !== "active") {
+    if (!eingerichtet) {
       const s = await api(`/api/blog/projects/${c.project.id}/start`, "POST");
       if (!s.ok) {
         setBusy(false);
@@ -488,7 +499,13 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
     <>
       <Titel
         a="Alles bereit."
-        b={datum ? `Dein erster Entwurf kommt am ${datum}, ${zeit} Uhr.` : "Dein Themenplan steht."}
+        b={
+          pausiert
+            ? "Die Automatik ist aus. Artikel startest du von Hand."
+            : datum
+              ? `Dein erster Entwurf kommt am ${datum}, ${zeit} Uhr.`
+              : "Dein Themenplan steht."
+        }
       />
       <Karte>
         <Zeile label="Freigegebene Themen" wert={themen === null ? "…" : String(themen.length)} />
@@ -536,6 +553,11 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
               </>
             )}
           </Hinweis>
+        ) : pausiert ? (
+          <Hinweis>
+            Die Automatik ist aus: Von selbst wird nichts geschrieben. Einen Artikel startest du
+            hier oder im Kalender von Hand. Die Automatik schaltet die Agentur im Blog-Bereich ein.
+          </Hinweis>
         ) : (
           <Hinweis>
             Jeder Artikel wird am Vortag geschrieben, mit Quellen geprüft und als Entwurf abgelegt.
@@ -569,11 +591,7 @@ export function BlogSchrittStart({ c }: { c: Ctx }) {
             {schreibt !== null ? "Wird geschrieben…" : "Ersten Artikel jetzt schreiben"}
           </Knopf>
           <Knopf onClick={() => void start()} disabled={busy}>
-            {busy
-              ? "Startet…"
-              : c.project.status === "active" || schreibt !== null
-                ? "Zum Blog"
-                : "Autopilot starten"}
+            {busy ? "Startet…" : eingerichtet || schreibt !== null ? "Zum Blog" : "Autopilot starten"}
           </Knopf>
         </div>
       </div>

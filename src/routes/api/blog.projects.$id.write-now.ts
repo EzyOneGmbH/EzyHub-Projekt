@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { blogEingerichtet } from "@/ezy/data/blogAutopilot";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireBlogProject } from "@/server/blog-autopilot.server";
 import { legeArtikelAn, MAX_PARALLEL } from "@/server/blog-pipeline.server";
@@ -22,7 +23,8 @@ export const Route = createFileRoute("/api/blog/projects/$id/write-now")({
         if (!parsed.success)
           return Response.json({ ok: false, error: "Ungültige Eingabe" }, { status: 400 });
         const sb = supabaseAdmin as any;
-        if (project.status !== "active")
+        // Auch bei ausgeschalteter Automatik («paused»): von Hand schreiben geht.
+        if (!blogEingerichtet(project.status))
           return Response.json(
             { ok: false, error: "Der Autopilot ist noch nicht gestartet" },
             { status: 409 },

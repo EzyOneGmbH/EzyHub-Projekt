@@ -3,6 +3,7 @@
 // Prüfung durch Ezy One und Freigabe. Statuswechsel passieren nur hier und in
 // der Pipeline (Kap. 10), nie im Browser.
 import { z } from "zod";
+import { blogEingerichtet } from "@/ezy/data/blogAutopilot";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   blogEvent,
@@ -192,6 +193,8 @@ export function artikelSicht(a: any, project: any) {
     ...rest,
     content_html: ctaAktuell(rest.content_html || ""),
     modus: job?.modus ?? "neu",
+    // Bisheriger Artikel der Website, nicht in EzyHub geschrieben (kein Text im Hub).
+    extern: job?.herkunft === "extern",
     nur_hub: nurHub(a, project),
     ungesendet: ungesendet(a, project),
     original_url: job?.brief?.original_url ?? null,
@@ -484,7 +487,8 @@ export async function schreibeNeu(r: Rahmen): Promise<Antwort> {
         ? "Nach der Freigabe lässt sich der Artikel nicht mehr neu schreiben"
         : "Der Artikel wird bereits geschrieben",
     );
-  if (project.status !== "active") return fehler(409, "Der Autopilot ist noch nicht gestartet");
+  if (!blogEingerichtet(project.status))
+    return fehler(409, "Der Autopilot ist noch nicht gestartet");
   if (!article.topic_id) return fehler(409, "Zu diesem Artikel fehlt das Thema");
   const { data: laufend } = await SB.from("blog_articles")
     .select("id")

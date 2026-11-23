@@ -51,3 +51,18 @@ export const BILDSTILE = [
 ] as const;
 
 export const SPRACHEN = ["de-CH", "de-DE", "fr-CH", "it-CH", "en"] as const;
+
+// Projektstatus (blog_projects.status): onboarding → active ⇄ paused.
+// «paused» heisst: Blog ist eingerichtet und sichtbar, aber nichts läuft von
+// selbst (kein automatisches Schreiben, kein Wochen-Audit). Von Hand
+// gestartete Artikel und Prüfungen bleiben möglich.
+
+/** Einrichtung abgeschlossen: Blog-Bereich zeigen, Handarbeit erlauben. */
+export function blogEingerichtet(status: unknown): boolean {
+  return status === "active" || status === "paused";
+}
+
+/** Nur dann schreibt und prüft der Autopilot von selbst. */
+export function automatikAktiv(status: unknown): boolean {
+  return status === "active";
+}

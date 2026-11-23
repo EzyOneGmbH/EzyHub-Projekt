@@ -11,6 +11,7 @@ import {
   BILDSTILE,
   SPRACHEN,
   TONALITAETEN,
+  blogEingerichtet,
 } from "@/ezy/data/blogAutopilot";
 import { BlogSchrittVerbindungen } from "@/ezy/BlogSchrittVerbindungen";
 import { BlogSchrittThemenplan, BlogSchrittStart } from "@/ezy/BlogSchrittThemen";
@@ -111,7 +112,7 @@ export default function BlogEinrichtung({
   useEffect(() => {
     if (project === undefined) return;
     const erlaubt = project ? project.onboarding_step : 1;
-    if (project?.status === "active" && step < 8) return; // Einstellungen wieder öffnen erlaubt
+    if (blogEingerichtet(project?.status) && step < 8) return; // Einstellungen wieder öffnen erlaubt
     if (step > erlaubt) gehe(erlaubt);
   }, [project, step, gehe]);
 
@@ -287,7 +288,9 @@ function KundenWahl({
               {k.name}
               {k.projekt?.status === "active"
                 ? " (aktiv)"
-                : k.projekt
+                : k.projekt?.status === "paused"
+                  ? " (Automatik aus)"
+                  : k.projekt
                   ? ` (Schritt ${k.projekt.onboarding_step})`
                   : ""}
             </option>
