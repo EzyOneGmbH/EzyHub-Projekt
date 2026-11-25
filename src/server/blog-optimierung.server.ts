@@ -25,34 +25,55 @@ const OFFEN = ["freigegeben", "schreibt", "faktencheck", "entwurf_wp", "kunde_fr
 const MONATE_ALT = 12;
 
 export type Stufe = "hoch" | "mittel" | "ok";
-export type Einschaetzung = { stufe: Stufe; grund: string };
+export type Einschaetzung = { stufe: Stufe; grund: string; massnahmen: string[] };
 
-/** Lohnt sich eine Überarbeitung? Ranking-Chance und Indexierung gehen vor Alter. */
+/**
+ * Lohnt sich eine Überarbeitung? Ranking-Chance und Indexierung gehen vor Alter.
+ * `grund` ist der wichtigste Befund, `massnahmen` sammelt die Schritte aus allen
+ * Befunden (Ranking, Indexierung, Alter).
+ */
 export function einschaetzung(s: {
   chance?: { keyword: string; position: number | null } | null;
   indexVerdict?: string | null;
   zuletzt?: string | null;
   heute: Date;
 }): Einschaetzung {
+  const gruende: string[] = [];
+  const massnahmen: string[] = [];
+  let stufe: Stufe = "ok";
+
   if (s.chance) {
     const pos = s.chance.position != null ? Math.round(Number(s.chance.position)) : null;
-    return {
-      stufe: "hoch",
-      grund: pos
+    stufe = "hoch";
+    gruende.push(
+      pos
         ? `Rankt auf Position ${pos} für «${s.chance.keyword}»`
         : `Fast vorne für «${s.chance.keyword}»`,
-    };
+    );
+    massnahmen.push(
+      `Titel, Einleitung und Zwischentitel auf «${s.chance.keyword}» ausrichten`,
+      "Fehlende Fragen zum Thema ergänzen und den Inhalt vertiefen",
+    );
   }
-  if (s.indexVerdict && s.indexVerdict !== "PASS")
-    return { stufe: "hoch", grund: "Nicht bei Google indexiert" };
+  if (s.indexVerdict && s.indexVerdict !== "PASS") {
+    stufe = "hoch";
+    gruende.push("Nicht bei Google indexiert");
+    massnahmen.push(
+      "Inhalt ausbauen und von passenden Seiten intern verlinken",
+      "Nach der Freigabe neu bei Google einreichen",
+    );
+  }
   const t = s.zuletzt ? new Date(s.zuletzt).getTime() : NaN;
   if (Number.isFinite(t)) {
     const grenze = new Date(s.heute);
     grenze.setMonth(grenze.getMonth() - MONATE_ALT);
-    if (t < grenze.getTime())
-      return { stufe: "mittel", grund: `Seit über ${MONATE_ALT} Monaten nicht überarbeitet` };
+    if (t < grenze.getTime()) {
+      if (stufe === "ok") stufe = "mittel";
+      gruende.push(`Seit über ${MONATE_ALT} Monaten nicht überarbeitet`);
+      massnahmen.push("Zahlen, Beispiele und Links auf den aktuellen Stand bringen");
+    }
   }
-  return { stufe: "ok", grund: "Keine Auffälligkeit" };
+  return { stufe, grund: gruende[0] ?? "Keine Auffälligkeit", massnahmen };
 }
 
 /** URL des Originals, zu dem ein Artikel die Überarbeitung ist (sonst null). */
@@ -171,6 +192,17 @@ export function baueListe(e: {
     const b = String(y.published_at ?? "");
     return x.einschaetzung.stufe === "mittel" ? a.localeCompare(b) : b.localeCompare(a);
   });
+}
+
+/**
+ * Nur Artikel mit Optimierungsbedarf. Ein stabiler Artikel bleibt in der Liste,
+ * solange eine Überarbeitung dazu offen ist, damit der Weg in den Editor bleibt.
+ */
+export function mitBedarf<T extends { einschaetzung: Einschaetzung; ueberarbeitung: unknown }>(
+  zeilen: T[],
+): { artikel: T[]; stabil: number } {
+  const artikel = zeilen.filter((z) => z.einschaetzung.stufe !== "ok" || z.ueberarbeitung);
+  return { artikel, stabil: zeilen.length - artikel.length };
 }
 
 /** «Mit KI optimieren»: legt die Überarbeitung eines veröffentlichten Artikels an. */

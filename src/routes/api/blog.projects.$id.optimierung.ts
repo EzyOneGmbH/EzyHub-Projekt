@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { istAgentur, requireBlogProject } from "@/server/blog-autopilot.server";
-import { baueListe } from "@/server/blog-optimierung.server";
+import { baueListe, mitBedarf } from "@/server/blog-optimierung.server";
 
-// GET /api/blog/projects/:id/optimierung: alle veröffentlichten Blogartikel des
-// Kunden mit Einschätzung (Optimieren / Auffrischen / In Ordnung) und dem Stand
-// einer laufenden Überarbeitung.
+// GET /api/blog/projects/:id/optimierung: die veröffentlichten Blogartikel des
+// Kunden, die eine Optimierung brauchen (Optimieren / Auffrischen), mit
+// Massnahmen und dem Stand einer laufenden Überarbeitung. Stabile Artikel
+// kommen nur als Anzahl zurück.
 
 export const Route = createFileRoute("/api/blog/projects/$id/optimierung")({
   server: {
@@ -43,14 +44,15 @@ export const Route = createFileRoute("/api/blog/projects/$id/optimierung")({
           .eq("content_type", "blog")
           .eq("status", "published")
           .limit(5000);
-        const artikel = baueListe({
+        const alle = baueListe({
           articles: articles ?? [],
           opps: opps ?? [],
           items: items ?? [],
           kunde: !istAgentur(r.ctx),
           heute: new Date(),
         });
-        return Response.json({ ok: true, artikel });
+        const { artikel, stabil } = mitBedarf(alle);
+        return Response.json({ ok: true, artikel, stabil });
       },
     },
   },

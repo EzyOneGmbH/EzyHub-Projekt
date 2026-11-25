@@ -63,7 +63,8 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (t: string) => builder(t) },
 }));
 
-const { baueListe, einschaetzung, starteOptimierung } = await import("./blog-optimierung.server");
+const { baueListe, einschaetzung, mitBedarf, starteOptimierung } =
+  await import("./blog-optimierung.server");
 
 const agentur: any = { userId: U, clientId: C, organizationId: "o", role: "admin", domain: "x" };
 const kunde: any = { ...agentur, role: "viewer" };
@@ -92,6 +93,18 @@ describe("einschaetzung", () => {
     expect(e.stufe).toBe("hoch");
     expect(e.grund).toContain("Position 11");
     expect(e.grund).toContain("nothilfe");
+    // Massnahmen aus allen Befunden: Ranking und Alter
+    expect(e.massnahmen[0]).toContain("nothilfe");
+    expect(e.massnahmen.join(" ")).toContain("aktuellen Stand");
+  });
+
+  it("ohne Befund keine Massnahmen", () => {
+    expect(
+      einschaetzung({ indexVerdict: "PASS", zuletzt: "2026-10-01", heute }).massnahmen,
+    ).toEqual([]);
+    expect(
+      einschaetzung({ indexVerdict: "FAIL", zuletzt: "2026-10-01", heute }).massnahmen.length,
+    ).toBeGreaterThan(0);
   });
 
   it("nicht indexiert → hoch", () => {
@@ -167,6 +180,27 @@ describe("baueListe", () => {
     expect(liste.map((z) => z.id)).toEqual(["chance", "index", "alt", "ok"]);
     expect(liste[0].keyword).toBe("kw");
     expect(liste[2].einschaetzung.stufe).toBe("mittel");
+
+    // Anzeige: stabile Artikel fallen weg und werden nur gezählt
+    const { artikel, stabil } = mitBedarf(liste);
+    expect(artikel.map((z) => z.id)).toEqual(["chance", "index", "alt"]);
+    expect(stabil).toBe(1);
+    expect(artikel.every((z) => z.einschaetzung.massnahmen.length > 0)).toBe(true);
+  });
+
+  it("stabiler Artikel bleibt sichtbar, solange eine Überarbeitung offen ist", () => {
+    const liste = baueListe({
+      articles: [
+        live({ published_at: "2026-10-01" }),
+        { id: "r1", status: "entwurf_wp", opt_url: URL_A, created_at: "2026-11-25T08:00:00Z" },
+      ],
+      opps: [],
+      items: [],
+      kunde: false,
+      heute,
+    });
+    expect(liste[0].einschaetzung.stufe).toBe("ok");
+    expect(mitBedarf(liste)).toMatchObject({ stabil: 0, artikel: [{ id: A }] });
   });
 });
 

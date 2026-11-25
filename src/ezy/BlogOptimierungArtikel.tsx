@@ -12,14 +12,15 @@ import {
   verweisStil,
 } from "@/ezy/BlogUi";
 
-// Blog-Tab «Optimierung», oberer Teil: alle veröffentlichten Artikel mit
-// Einschätzung. «Mit KI optimieren» legt eine Überarbeitung als Entwurf an und
-// öffnet sie im Editor; der Artikel auf der Website bleibt bis zur Freigabe.
+// Blog-Tab «Optimierung», oberer Teil: nur veröffentlichte Artikel, die eine
+// Optimierung brauchen, mit Massnahmen. «Mit KI optimieren» legt eine
+// Überarbeitung als Entwurf an und öffnet sie im Editor; der Artikel auf der
+// Website bleibt bis zur Freigabe. Stabile Artikel erscheinen nur als Anzahl.
 
 const STUFE: Record<string, { text: string; farbe: string; grund: string }> = {
   hoch: { text: "Optimieren", farbe: P.accent, grund: P.accentDim },
   mittel: { text: "Auffrischen", farbe: P.text, grund: "rgba(43,0,51,.08)" },
-  ok: { text: "In Ordnung", farbe: "#00704a", grund: P.greenDim },
+  ok: { text: "Stabil", farbe: "#00704a", grund: P.greenDim },
 };
 const SEITE = 25;
 
@@ -27,7 +28,7 @@ const zelle: React.CSSProperties = {
   padding: "10px 12px",
   borderTop: `1px solid ${HAARLINIE}`,
   fontSize: 14,
-  verticalAlign: "middle",
+  verticalAlign: "top",
   textAlign: "left",
 };
 const kopf: React.CSSProperties = {
@@ -49,7 +50,8 @@ export default function BlogOptimierungArtikel({
 }) {
   const [liste, setListe] = useState<any[] | null>(null);
   const [fehler, setFehler] = useState(false);
-  const [filter, setFilter] = useState<"alle" | "empfohlen" | "arbeit">("alle");
+  const [stabil, setStabil] = useState(0);
+  const [filter, setFilter] = useState<"alle" | "hoch" | "mittel" | "arbeit">("alle");
   const [busy, setBusy] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [alleZeigen, setAlleZeigen] = useState(false);
@@ -58,6 +60,7 @@ export default function BlogOptimierungArtikel({
     const r = await api(`/api/blog/projects/${projektId}/optimierung`);
     if (r.ok && r.json?.ok) {
       setListe(r.json.artikel ?? []);
+      setStabil(Number(r.json.stabil ?? 0));
       setFehler(false);
     } else setFehler(true);
   }, [projektId]);
@@ -90,17 +93,29 @@ export default function BlogOptimierungArtikel({
   };
 
   const alle = liste ?? [];
-  const empfohlen = alle.filter((a) => a.einschaetzung?.stufe !== "ok");
+  const hoch = alle.filter((a) => a.einschaetzung?.stufe === "hoch");
+  const mittel = alle.filter((a) => a.einschaetzung?.stufe === "mittel");
   const inArbeit = alle.filter((a) => a.ueberarbeitung);
-  const gefiltert = filter === "empfohlen" ? empfohlen : filter === "arbeit" ? inArbeit : alle;
+  const gefiltert =
+    filter === "hoch" ? hoch : filter === "mittel" ? mittel : filter === "arbeit" ? inArbeit : alle;
+  const stabilText =
+    stabil === 1
+      ? "1 weiterer Artikel ist stabil und braucht aktuell keine Optimierung."
+      : `${stabil} weitere Artikel sind stabil und brauchen aktuell keine Optimierung.`;
+  const leerText =
+    stabil === 0
+      ? "Es sind noch keine veröffentlichten Artikel erfasst."
+      : stabil === 1
+        ? "Aktuell braucht kein Artikel eine Optimierung. Der veröffentlichte Artikel ist stabil."
+        : `Aktuell braucht kein Artikel eine Optimierung. Alle ${stabil} veröffentlichten Artikel sind stabil.`;
   const sichtbar = alleZeigen ? gefiltert : gefiltert.slice(0, SEITE);
 
   return (
-    <Block titel="Veröffentlichte Artikel">
+    <Block titel="Artikel mit Optimierungsbedarf">
       <div style={{ fontSize: 14, color: P.muted, maxWidth: 720 }}>
-        Alle Artikel, die auf deiner Website live sind, mit einer Einschätzung. Eine Optimierung
-        entsteht als Entwurf im Editor. Der Artikel auf der Website bleibt unverändert, bis die
-        Überarbeitung freigegeben ist.
+        Veröffentlichte Artikel, bei denen sich eine Optimierung lohnt, mit den Massnahmen dazu. Die
+        Optimierung entsteht als Entwurf im Editor. Der Artikel auf der Website bleibt unverändert,
+        bis die Überarbeitung freigegeben ist.
       </div>
 
       {meldung && <Hinweis ton="fehler">{meldung}</Hinweis>}
@@ -110,9 +125,7 @@ export default function BlogOptimierungArtikel({
       ) : !liste ? (
         <div style={{ fontSize: 14, color: P.muted }}>Wird geladen…</div>
       ) : alle.length === 0 ? (
-        <div style={{ fontSize: 14, color: P.muted }}>
-          Es sind noch keine veröffentlichten Artikel erfasst.
-        </div>
+        <div style={{ fontSize: 14, color: P.muted }}>{leerText}</div>
       ) : (
         <>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -124,11 +137,18 @@ export default function BlogOptimierungArtikel({
               Alle
             </FilterChip>
             <FilterChip
-              an={filter === "empfohlen"}
-              onClick={() => setFilter("empfohlen")}
-              anzahl={empfohlen.length}
+              an={filter === "hoch"}
+              onClick={() => setFilter("hoch")}
+              anzahl={hoch.length}
             >
-              Optimierung empfohlen
+              Optimieren
+            </FilterChip>
+            <FilterChip
+              an={filter === "mittel"}
+              onClick={() => setFilter("mittel")}
+              anzahl={mittel.length}
+            >
+              Auffrischen
             </FilterChip>
             <FilterChip
               an={filter === "arbeit"}
@@ -142,7 +162,7 @@ export default function BlogOptimierungArtikel({
             <div style={{ fontSize: 14, color: P.muted }}>Nichts in dieser Auswahl.</div>
           ) : (
             <div style={{ overflowX: "auto", maxWidth: "100%" }}>
-              <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse" }}>
+              <table style={{ width: "100%", minWidth: 860, borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
                     <th scope="col" style={kopf}>
@@ -155,6 +175,9 @@ export default function BlogOptimierungArtikel({
                       Einschätzung
                     </th>
                     <th scope="col" style={kopf}>
+                      Massnahmen
+                    </th>
+                    <th scope="col" style={kopf}>
                       {agentur ? "Aktion" : "Überarbeitung"}
                     </th>
                   </tr>
@@ -163,6 +186,7 @@ export default function BlogOptimierungArtikel({
                   {sichtbar.map((a) => {
                     const s = STUFE[a.einschaetzung?.stufe] ?? STUFE.ok;
                     const u = a.ueberarbeitung;
+                    const massnahmen: string[] = a.einschaetzung?.massnahmen ?? [];
                     const tag = a.published_at
                       ? tagLokal(String(a.published_at).slice(0, 10))
                       : null;
@@ -205,6 +229,25 @@ export default function BlogOptimierungArtikel({
                             <div style={{ fontSize: 12.5, color: P.dim, marginTop: 4 }}>
                               {a.einschaetzung.grund}
                             </div>
+                          )}
+                        </td>
+                        <td style={{ ...zelle, minWidth: 240 }}>
+                          {massnahmen.length > 0 ? (
+                            <ul
+                              style={{
+                                margin: 0,
+                                paddingLeft: 18,
+                                fontSize: 13.5,
+                                lineHeight: 1.45,
+                                color: P.text,
+                              }}
+                            >
+                              {massnahmen.map((m) => (
+                                <li key={m}>{m}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span style={{ fontSize: 13.5, color: P.dim }}>–</span>
                           )}
                         </td>
                         <td style={{ ...zelle, minWidth: 190 }}>
@@ -266,6 +309,7 @@ export default function BlogOptimierungArtikel({
               </Knopf>
             </div>
           )}
+          {stabil > 0 && <div style={{ fontSize: 13.5, color: P.dim }}>{stabilText}</div>}
         </>
       )}
     </Block>
