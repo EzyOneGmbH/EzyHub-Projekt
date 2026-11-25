@@ -86,6 +86,12 @@ export function modusFuer(
   return set.has(normUrl(coveredUrl)) ? "refresh" : "vorschlag";
 }
 
+/** Auftrag «Mit KI optimieren»: die URL des bestehenden Artikels steht im Job und geht vor. */
+export function optimierungsUrl(job: any): string | null {
+  const u = job?.optimierung?.url;
+  return typeof u === "string" && /^https?:\/\//i.test(u) ? u : null;
+}
+
 export function esc(s: string): string {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -673,11 +679,16 @@ async function brief(article: any, project: any): Promise<StufeErgebnis> {
     .eq("content_type", "blog")
     .eq("status", "published");
   const blog = (items ?? []).filter((i: any) => i.target_url);
-  const modus = modusFuer(
-    topic.kind,
-    opp?.covered_by_url,
-    blog.map((i: any) => i.target_url),
-  );
+  // «Mit KI optimieren» nennt den Artikel direkt: immer eine Überarbeitung.
+  const seed = optimierungsUrl(article.job);
+  const originalUrl: string | null = seed ?? opp?.covered_by_url ?? null;
+  const modus: Modus = seed
+    ? "refresh"
+    : modusFuer(
+        topic.kind,
+        opp?.covered_by_url,
+        blog.map((i: any) => i.target_url),
+      );
 
   const [{ data: regeln }, { data: fakten }, { data: mitbewerber }, { data: ana }] =
     await Promise.all([
@@ -693,8 +704,7 @@ async function brief(article: any, project: any): Promise<StufeErgebnis> {
         .maybeSingle(),
     ]);
 
-  const original =
-    opp?.covered_by_url && modus !== "neu" ? await ladeOriginal(opp.covered_by_url) : null;
+  const original = originalUrl && modus !== "neu" ? await ladeOriginal(originalUrl) : null;
 
   // Website-Auszüge: Startseite + relevanteste Seiten (Fakten über den Kunden)
   const seiten: Array<{ url: string; title: string; text: string }> =
@@ -711,9 +721,7 @@ async function brief(article: any, project: any): Promise<StufeErgebnis> {
 
   // interne Links: thematisch passende eigene Artikel (nicht das Original)
   const links = blog
-    .filter(
-      (i: any) => !opp?.covered_by_url || normUrl(i.target_url) !== normUrl(opp.covered_by_url),
-    )
+    .filter((i: any) => !originalUrl || normUrl(i.target_url) !== normUrl(originalUrl))
     .map((i: any) => ({
       url: i.target_url as string,
       titel: String(i.title || ""),
@@ -765,7 +773,7 @@ async function brief(article: any, project: any): Promise<StufeErgebnis> {
     zitierbar: topic.citable_element ?? null,
     grund: opp?.reason ?? null,
     position: opp?.avg_position ?? null,
-    original_url: opp?.covered_by_url ?? null,
+    original_url: originalUrl,
     original,
     regeln: (regeln ?? []).map((r: any) => r.rule),
     fakten: fakten ?? [],
@@ -955,7 +963,7 @@ export function entwurfPrompt(project: any, b: any, quellen: any[]): string {
     ...gemeinsam,
     "",
     b.modus === "refresh"
-      ? `AUFGABE: Überarbeite den bestehenden Artikel ${b.original_url} («${b.original?.titel ?? ""}»). Er rankt für «${b.keyword}» auf Position ${b.position ?? "?"}. ${b.grund ?? ""} Behalte die guten Teile und den Kern, schliesse Lücken zur Suchintention, aktualisiere Fakten, verbessere Struktur, Einstieg und Überschriften. Ergebnis ist der vollständige neue Text.`
+      ? `AUFGABE: Überarbeite den bestehenden Artikel ${b.original_url} («${b.original?.titel ?? ""}»). ${b.position != null ? `Er rankt für «${b.keyword}» auf Position ${b.position}.` : `Das Hauptthema ist «${b.keyword}».`} ${b.grund ?? ""} Behalte die guten Teile und den Kern, schliesse Lücken zur Suchintention, aktualisiere Fakten, verbessere Struktur, Einstieg und Überschriften. Ergebnis ist der vollständige neue Text.`
       : `AUFGABE: Schreibe einen neuen Blogartikel zum Keyword «${b.keyword}»${b.article_type ? ` (Typ: ${b.article_type})` : ""}.${b.grund ? ` Hintergrund: ${b.grund}` : ""}`,
     ...(b.modus !== "refresh" && TYP_HINWEIS[b.article_type ?? ""]
       ? [`Form für diesen Artikeltyp: ${TYP_HINWEIS[b.article_type ?? ""]}`]

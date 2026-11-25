@@ -16,8 +16,13 @@ export type AppVersionInfo = {
 export const APP_VERSIONS: Record<string, AppVersionInfo> = {
   // EzyRank (SEO)
   seo: {
-    version: "2.7.8",
+    version: "2.7.9",
     changelog: [
+      {
+        version: "2.7.9",
+        date: "2026-11-25",
+        note: "Blog-Tab «Optimierung»: alle veröffentlichten Artikel mit Einschätzung (Optimieren, Auffrischen, In Ordnung). «Mit KI optimieren» schreibt eine Überarbeitung als Entwurf und öffnet sie im Editor; der Artikel auf der Website bleibt bis zur Freigabe unverändert",
+      },
       {
         version: "2.7.8",
         date: "2026-11-23",

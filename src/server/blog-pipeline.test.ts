@@ -13,6 +13,7 @@ const {
   loeseClaims,
   modusFuer,
   normUrl,
+  optimierungsUrl,
   pruefeBehauptungen,
   schweiz,
   setzeCta,
@@ -267,6 +268,19 @@ describe("Modus, Kategorie, Helfer", () => {
     expect(
       modusFuer("refresh", "https://faithinhumanity.ch/projektes/trinkwasser-stationen/", blog),
     ).toBe("vorschlag");
+  });
+
+  it("Optimierungs-Auftrag: nur eine echte Web-Adresse zählt", () => {
+    const url = "https://beispiel.ch/blog/a/";
+    expect(optimierungsUrl({ optimierung: { url } })).toBe(url);
+    expect(optimierungsUrl({ optimierung: { url: "http://beispiel.ch/a" } })).toBe(
+      "http://beispiel.ch/a",
+    );
+    expect(optimierungsUrl(null)).toBeNull();
+    expect(optimierungsUrl({})).toBeNull();
+    expect(optimierungsUrl({ optimierung: { url: 5 } })).toBeNull();
+    expect(optimierungsUrl({ optimierung: { url: "javascript:alert(1)" } })).toBeNull();
+    expect(optimierungsUrl({ optimierung: { url: "/blog/a/" } })).toBeNull();
   });
 
   it("nie Uncategorized, wenn andere passen", () => {

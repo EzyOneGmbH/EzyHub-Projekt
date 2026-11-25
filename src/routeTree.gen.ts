@@ -205,6 +205,8 @@ import { Route as ApiBlogProjectsIdEventsRouteImport } from './routes/api/blog.p
 import { Route as ApiBlogProjectsIdGoogleRouteImport } from './routes/api/blog.projects.$id.google'
 import { Route as ApiBlogProjectsIdKiRouteImport } from './routes/api/blog.projects.$id.ki'
 import { Route as ApiBlogProjectsIdOpportunitiesRouteImport } from './routes/api/blog.projects.$id.opportunities'
+import { Route as ApiBlogProjectsIdOptimierungRouteImport } from './routes/api/blog.projects.$id.optimierung'
+import { Route as ApiBlogProjectsIdOptimizeRouteImport } from './routes/api/blog.projects.$id.optimize'
 import { Route as ApiBlogProjectsIdRulesRouteImport } from './routes/api/blog.projects.$id.rules'
 import { Route as ApiBlogProjectsIdStartRouteImport } from './routes/api/blog.projects.$id.start'
 import { Route as ApiBlogProjectsIdStrukturRouteImport } from './routes/api/blog.projects.$id.struktur'
@@ -1238,6 +1240,18 @@ const ApiBlogProjectsIdOpportunitiesRoute =
     path: '/opportunities',
     getParentRoute: () => ApiBlogProjectsIdRoute,
   } as any)
+const ApiBlogProjectsIdOptimierungRoute =
+  ApiBlogProjectsIdOptimierungRouteImport.update({
+    id: '/optimierung',
+    path: '/optimierung',
+    getParentRoute: () => ApiBlogProjectsIdRoute,
+  } as any)
+const ApiBlogProjectsIdOptimizeRoute =
+  ApiBlogProjectsIdOptimizeRouteImport.update({
+    id: '/optimize',
+    path: '/optimize',
+    getParentRoute: () => ApiBlogProjectsIdRoute,
+  } as any)
 const ApiBlogProjectsIdRulesRoute = ApiBlogProjectsIdRulesRouteImport.update({
   id: '/rules',
   path: '/rules',
@@ -1529,6 +1543,8 @@ export interface FileRoutesByFullPath {
   '/api/blog/projects/$id/google': typeof ApiBlogProjectsIdGoogleRoute
   '/api/blog/projects/$id/ki': typeof ApiBlogProjectsIdKiRoute
   '/api/blog/projects/$id/opportunities': typeof ApiBlogProjectsIdOpportunitiesRouteWithChildren
+  '/api/blog/projects/$id/optimierung': typeof ApiBlogProjectsIdOptimierungRoute
+  '/api/blog/projects/$id/optimize': typeof ApiBlogProjectsIdOptimizeRoute
   '/api/blog/projects/$id/rules': typeof ApiBlogProjectsIdRulesRoute
   '/api/blog/projects/$id/start': typeof ApiBlogProjectsIdStartRoute
   '/api/blog/projects/$id/struktur': typeof ApiBlogProjectsIdStrukturRoute
@@ -1743,6 +1759,8 @@ export interface FileRoutesByTo {
   '/api/blog/projects/$id/google': typeof ApiBlogProjectsIdGoogleRoute
   '/api/blog/projects/$id/ki': typeof ApiBlogProjectsIdKiRoute
   '/api/blog/projects/$id/opportunities': typeof ApiBlogProjectsIdOpportunitiesRouteWithChildren
+  '/api/blog/projects/$id/optimierung': typeof ApiBlogProjectsIdOptimierungRoute
+  '/api/blog/projects/$id/optimize': typeof ApiBlogProjectsIdOptimizeRoute
   '/api/blog/projects/$id/rules': typeof ApiBlogProjectsIdRulesRoute
   '/api/blog/projects/$id/start': typeof ApiBlogProjectsIdStartRoute
   '/api/blog/projects/$id/struktur': typeof ApiBlogProjectsIdStrukturRoute
@@ -1958,6 +1976,8 @@ export interface FileRoutesById {
   '/api/blog/projects/$id/google': typeof ApiBlogProjectsIdGoogleRoute
   '/api/blog/projects/$id/ki': typeof ApiBlogProjectsIdKiRoute
   '/api/blog/projects/$id/opportunities': typeof ApiBlogProjectsIdOpportunitiesRouteWithChildren
+  '/api/blog/projects/$id/optimierung': typeof ApiBlogProjectsIdOptimierungRoute
+  '/api/blog/projects/$id/optimize': typeof ApiBlogProjectsIdOptimizeRoute
   '/api/blog/projects/$id/rules': typeof ApiBlogProjectsIdRulesRoute
   '/api/blog/projects/$id/start': typeof ApiBlogProjectsIdStartRoute
   '/api/blog/projects/$id/struktur': typeof ApiBlogProjectsIdStrukturRoute
@@ -2174,6 +2194,8 @@ export interface FileRouteTypes {
     | '/api/blog/projects/$id/google'
     | '/api/blog/projects/$id/ki'
     | '/api/blog/projects/$id/opportunities'
+    | '/api/blog/projects/$id/optimierung'
+    | '/api/blog/projects/$id/optimize'
     | '/api/blog/projects/$id/rules'
     | '/api/blog/projects/$id/start'
     | '/api/blog/projects/$id/struktur'
@@ -2388,6 +2410,8 @@ export interface FileRouteTypes {
     | '/api/blog/projects/$id/google'
     | '/api/blog/projects/$id/ki'
     | '/api/blog/projects/$id/opportunities'
+    | '/api/blog/projects/$id/optimierung'
+    | '/api/blog/projects/$id/optimize'
     | '/api/blog/projects/$id/rules'
     | '/api/blog/projects/$id/start'
     | '/api/blog/projects/$id/struktur'
@@ -2602,6 +2626,8 @@ export interface FileRouteTypes {
     | '/api/blog/projects/$id/google'
     | '/api/blog/projects/$id/ki'
     | '/api/blog/projects/$id/opportunities'
+    | '/api/blog/projects/$id/optimierung'
+    | '/api/blog/projects/$id/optimize'
     | '/api/blog/projects/$id/rules'
     | '/api/blog/projects/$id/start'
     | '/api/blog/projects/$id/struktur'
@@ -4173,6 +4199,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBlogProjectsIdOpportunitiesRouteImport
       parentRoute: typeof ApiBlogProjectsIdRoute
     }
+    '/api/blog/projects/$id/optimierung': {
+      id: '/api/blog/projects/$id/optimierung'
+      path: '/optimierung'
+      fullPath: '/api/blog/projects/$id/optimierung'
+      preLoaderRoute: typeof ApiBlogProjectsIdOptimierungRouteImport
+      parentRoute: typeof ApiBlogProjectsIdRoute
+    }
+    '/api/blog/projects/$id/optimize': {
+      id: '/api/blog/projects/$id/optimize'
+      path: '/optimize'
+      fullPath: '/api/blog/projects/$id/optimize'
+      preLoaderRoute: typeof ApiBlogProjectsIdOptimizeRouteImport
+      parentRoute: typeof ApiBlogProjectsIdRoute
+    }
     '/api/blog/projects/$id/rules': {
       id: '/api/blog/projects/$id/rules'
       path: '/rules'
@@ -4397,6 +4437,8 @@ interface ApiBlogProjectsIdRouteChildren {
   ApiBlogProjectsIdGoogleRoute: typeof ApiBlogProjectsIdGoogleRoute
   ApiBlogProjectsIdKiRoute: typeof ApiBlogProjectsIdKiRoute
   ApiBlogProjectsIdOpportunitiesRoute: typeof ApiBlogProjectsIdOpportunitiesRouteWithChildren
+  ApiBlogProjectsIdOptimierungRoute: typeof ApiBlogProjectsIdOptimierungRoute
+  ApiBlogProjectsIdOptimizeRoute: typeof ApiBlogProjectsIdOptimizeRoute
   ApiBlogProjectsIdRulesRoute: typeof ApiBlogProjectsIdRulesRoute
   ApiBlogProjectsIdStartRoute: typeof ApiBlogProjectsIdStartRoute
   ApiBlogProjectsIdStrukturRoute: typeof ApiBlogProjectsIdStrukturRoute
@@ -4419,6 +4461,8 @@ const ApiBlogProjectsIdRouteChildren: ApiBlogProjectsIdRouteChildren = {
   ApiBlogProjectsIdKiRoute: ApiBlogProjectsIdKiRoute,
   ApiBlogProjectsIdOpportunitiesRoute:
     ApiBlogProjectsIdOpportunitiesRouteWithChildren,
+  ApiBlogProjectsIdOptimierungRoute: ApiBlogProjectsIdOptimierungRoute,
+  ApiBlogProjectsIdOptimizeRoute: ApiBlogProjectsIdOptimizeRoute,
   ApiBlogProjectsIdRulesRoute: ApiBlogProjectsIdRulesRoute,
   ApiBlogProjectsIdStartRoute: ApiBlogProjectsIdStartRoute,
   ApiBlogProjectsIdStrukturRoute: ApiBlogProjectsIdStrukturRoute,

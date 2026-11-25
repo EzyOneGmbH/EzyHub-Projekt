@@ -514,6 +514,8 @@ export async function schreibeNeu(r: Rahmen): Promise<Antwort> {
   const job = {
     ...(alt.trigger ? { trigger: alt.trigger } : {}),
     ...(alt.wordpress ? { wordpress: alt.wordpress } : {}),
+    // Auftrag «Mit KI optimieren»: ohne ihn wüsste der Brief das Original nicht mehr.
+    ...(alt.optimierung ? { optimierung: alt.optimierung } : {}),
     neu: { at: jetzt, by: ctx.userId },
   };
   const { data, error } = await SB.from("blog_articles")

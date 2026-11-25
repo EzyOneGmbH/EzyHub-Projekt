@@ -11,6 +11,7 @@ import {
   zahl,
   zeitText,
 } from "@/ezy/BlogUi";
+import BlogOptimierungArtikel from "@/ezy/BlogOptimierungArtikel";
 
 // Blog-Tab «Optimierung»: bestehende Inhalte, die mit wenig Aufwand besser
 // ranken können. Entschieden wird im Themenplan; hier steht die Übersicht.
@@ -104,8 +105,9 @@ export default function BlogOptimierung({
 
   return (
     <>
+      <BlogOptimierungArtikel projektId={projektId} agentur={agentur} />
       <Block
-        titel="Optimierung"
+        titel="Themen mit Potenzial"
         rechts={
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13.5, color: P.muted }}>
